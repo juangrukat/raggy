@@ -261,7 +261,7 @@ def print_server_info():
 
     print(f"🚀 MCP Server starting on {url}")
     print(f"📡 SSE endpoint: {url}/sse")
-    print(f"🔧 Configure Claude Desktop to use: {url}/sse")
+    print(f"🔧 Configure your MCP client to use: {url}/sse")
 
     # Show Qdrant configuration
     qdrant_url = os.environ.get("QDRANT_URL", "http://localhost:6333")

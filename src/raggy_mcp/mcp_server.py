@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 class QdrantMCPServer(FastMCP):
     """
     Enhanced MCP server with improved embedding management and collection handling.
-    Includes graceful error handling for different MCP clients (LM Studio, Claude Desktop, etc.)
+    Includes graceful error handling for different MCP clients (LM Studio, Claude Desktop, Windsurf, Cursor, etc.)
     """
 
     def __init__(

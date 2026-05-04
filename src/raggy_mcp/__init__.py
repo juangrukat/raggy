@@ -29,7 +29,7 @@ Usage:
     )
 
 Compatible with:
-- Claude Desktop (MCP client)
+- Any MCP-compatible desktop client
 - LM Studio (MCP client)  
 - Custom MCP implementations
 - Direct FastMCP usage

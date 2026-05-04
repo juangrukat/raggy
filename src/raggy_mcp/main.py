@@ -3,7 +3,7 @@ Entry point for the `raggy-mcp` CLI.
 
 Supports two MCP transports:
 
-* ``stdio`` (default) — single-client, per-process. Best for Claude Desktop,
+* ``stdio`` (default) — single-client, per-process. Best for local desktop MCP clients,
   LM Studio, or any client that spawns the server.
 * ``streamable-http`` — long-lived local server that multiple agents can share
   on the same machine. Binds to ``127.0.0.1`` by default, validates the
