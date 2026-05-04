@@ -9,7 +9,7 @@ The repository is a Python package named `raggy-mcp`. It provides two
 entry points:
 
 - `raggy-mcp`: MCP server over `stdio`, `sse`, or `streamable-http`.
-- `raggy-mcp-webui`: FastAPI REST surface for non-MCP clients.
+- `raggy-mcp-webui`: NiceGUI dashboard + optional REST API for browser-based management.
 
 The default local profile is intended for real day-to-day use: document-level
 search, folder/file ingestion, collection creation, hybrid collection creation,
@@ -262,17 +262,58 @@ Useful checks:
 ./scripts/local-doctor.sh
 ```
 
-Run the REST API:
+### WebUI Dashboard
+
+The `raggy-mcp-webui` command starts a NiceGUI dashboard for managing your
+local retrieval infrastructure through a browser. The dashboard provides:
+
+- **Dashboard** — Server status, Qdrant mode, active embedding model, write queue
+- **Search Playground** — Query collections with dense/hybrid/rerank/late-interaction modes
+- **Collections** — Create, inspect, bootstrap indexes, and delete collections
+- **Ingestion** — Ingest files and folders with supported format display
+- **Models** — View and understand embedding, sparse, reranker, and late-interaction models
+- **Configuration** — View and edit settings with source provenance (env/config/default)
+- **Admin** — Tool profiles, maintenance commands, and logs
+
+Quick start:
 
 ```bash
-./scripts/local-run-webui.sh
+# Install with webui dependencies
+uv sync --frozen --group dev
+
+# Start the dashboard (port 8080 by default)
+raggy-mcp-webui
 ```
 
-The REST API defaults to:
+Or with the REST API running alongside on a separate port:
 
-```text
-http://127.0.0.1:8765
+```bash
+# Dashboard on 8080, REST API on 8765
+raggy-mcp-webui --rest-port 8765
 ```
+
+Full options:
+
+```bash
+raggy-mcp-webui --help
+# Usage:
+#   --host HOST         Bind address (default: 127.0.0.1)
+#   --port PORT         UI port (default: 8080)
+#   --rest-port PORT    Also start REST API on this port
+#   --rest-cors [...]   CORS origins for REST API
+#   --reload            Auto-reload on code changes (dev)
+```
+
+Open http://127.0.0.1:8080 in your browser.
+
+The webui reads the same `raggy.yaml` config and environment variables as the
+MCP server. Any settings edited in the Configuration page are saved to
+`raggy.yaml` and take effect on restart.
+
+**Architecture note:** The webui initializes its own QdrantConnector and
+embedding providers. When running in `QDRANT_MODE=server`, the webui and
+MCP server can share the same Qdrant instance without conflict. In embedded
+mode, only one process can hold the lock at a time.
 
 ### Stdio MCP Mode
 
@@ -380,6 +421,7 @@ same plan id.
 ## Technical Details
 
 - MCP runtime: FastMCP.
+- WebUI runtime: NiceGUI.
 - REST runtime: FastAPI and Uvicorn.
 - Vector store: Qdrant client, either embedded local storage or server URL.
 - Dense embeddings: FastEmbed-compatible providers, with Qwen3 sidecar support.
@@ -398,6 +440,7 @@ same plan id.
 ## Useful Maintenance Commands
 
 ```bash
+# Reset local server processes
 ./scripts/reset-server-qdrant.sh
 ```
 
