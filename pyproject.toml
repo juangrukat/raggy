@@ -1,0 +1,55 @@
+[project]
+name = "raggy-mcp"
+version = "0.7.1"
+description = "MCP server for retrieving context from a Qdrant vector database"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+dependencies = [
+    "fastembed>=0.6.0",
+    "qdrant-client>=1.17.1,<1.18.0",
+    "pydantic>=2.10.6",
+    "fastmcp>=2.14,<3",
+    "docker>=7.1.0",
+    "pdfminer.six>=20221105",
+    "pypdf>=4.0.0",
+    "python-docx>=1.1.0",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+]
+
+[project.optional-dependencies]
+reranking = [
+    "torch>=2.0.0",
+    "transformers>=4.51.0",
+    "accelerate>=0.26.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "ipdb>=0.13.13",
+    "isort>=6.0.1",
+    "mypy>=1.9.0",
+    "pre-commit>=4.1.0",
+    "pyright>=1.1.389",
+    "pytest>=8.3.3",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.8.0",
+]
+
+[project.scripts]
+raggy-mcp = "raggy_mcp.main:main"
+raggy-mcp-webui = "raggy_mcp.webui.main:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_functions = "test_*"
+asyncio_mode = "auto"
+markers = [
+    "optional: tests for optional dependencies that are skipped when unavailable",
+]
