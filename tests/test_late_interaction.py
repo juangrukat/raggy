@@ -27,8 +27,7 @@ class FakeDenseProvider:
 class FakeLateInteractionProvider:
     async def embed_documents(self, documents):
         return [
-            [[float(i + 1), 0.0], [0.0, float(i + 1)]]
-            for i, _ in enumerate(documents)
+            [[float(i + 1), 0.0], [0.0, float(i + 1)]] for i, _ in enumerate(documents)
         ]
 
     async def embed_query(self, query):
@@ -115,7 +114,10 @@ async def test_late_interaction_store_and_search_use_2d_vectors():
     )
 
     assert stored == 1
-    assert fake_client.upserted["points"][0].vector["colbert"] == [[1.0, 0.0], [0.0, 1.0]]
+    assert fake_client.upserted["points"][0].vector["colbert"] == [
+        [1.0, 0.0],
+        [0.0, 1.0],
+    ]
     assert fake_client.query["using"] == "colbert"
     assert fake_client.query["query"] == [[1.0, 0.0], [0.0, 1.0]]
     assert results[0][0].content == "alpha beta"

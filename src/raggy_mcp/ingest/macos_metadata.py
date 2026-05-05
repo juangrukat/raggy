@@ -97,14 +97,18 @@ async def _run_command_async(*args: str, timeout: float = 10) -> tuple[bytes, in
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout, _stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+            stdout, _stderr = await asyncio.wait_for(
+                proc.communicate(), timeout=timeout
+            )
             return stdout, proc.returncode or 0
         except Exception:
             return b"", 1
 
 
 async def _run_mdls_async(path: str) -> dict[str, Any] | None:
-    stdout, returncode = await _run_command_async("mdls", "-plist", "-", path, timeout=10)
+    stdout, returncode = await _run_command_async(
+        "mdls", "-plist", "-", path, timeout=10
+    )
     if returncode != 0 or not stdout:
         return None
     try:
@@ -138,15 +142,15 @@ def _normalize_spotlight(raw: dict[str, Any]) -> dict[str, Any]:
         out["content_type"] = v
     if v := _str("kMDItemTitle"):
         out["title"] = v
-    if v := _list("kMDItemAuthors"):
+    if v := _list("kMDItemAuthors"):  # type: ignore[assignment]
         out["authors"] = v
-    if v := _list("kMDItemKeywords"):
+    if v := _list("kMDItemKeywords"):  # type: ignore[assignment]
         out["keywords"] = v
-    if v := _list("kMDItemUserTags"):
+    if v := _list("kMDItemUserTags"):  # type: ignore[assignment]
         out["tags"] = v
     if v := _str("kMDItemComment"):
         out["comment"] = v
-    if v := _list("kMDItemWhereFroms"):
+    if v := _list("kMDItemWhereFroms"):  # type: ignore[assignment]
         out["source_urls"] = v
     if v := _date("kMDItemFSCreationDate"):
         out["created_at"] = v

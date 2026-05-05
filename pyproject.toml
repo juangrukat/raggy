@@ -56,3 +56,13 @@ asyncio_mode = "auto"
 markers = [
     "optional: tests for optional dependencies that are skipped when unavailable",
 ]
+
+[tool.mypy]
+ignore_missing_imports = true
+strict = false
+
+[tool.isort]
+profile = "black"
+line_length = 88
+multi_line_output = 3
+include_trailing_comma = true

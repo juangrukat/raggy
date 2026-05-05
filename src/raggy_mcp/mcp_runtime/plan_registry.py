@@ -77,7 +77,9 @@ class PlanRegistry:
                     f"or was already applied. Re-run with mode='report' to get a fresh plan_id."
                 )
             if plan.consumed:
-                raise ValueError(f"Plan '{plan_id}' was already applied. Run mode='report' to get a new one.")
+                raise ValueError(
+                    f"Plan '{plan_id}' was already applied. Run mode='report' to get a new one."
+                )
             if plan.tool != expected_tool:
                 raise ValueError(
                     f"Plan '{plan_id}' was created for tool '{plan.tool}', not '{expected_tool}'."

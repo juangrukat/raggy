@@ -50,109 +50,148 @@ def _envelope(data_schema: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-COLLECTION_RESULT_SCHEMA: dict[str, Any] = _envelope({
-    "type": "object",
-    "properties": {
-        "collection_name": {"type": "string"},
-        "vector_size": {"type": "integer"},
-        "distance": {"type": "string"},
-        "embedding_model": {"type": "string"},
-        "sparse_model": {"type": "string"},
-        "hybrid": {"type": "boolean"},
-        "late_interaction_model": {"type": "string"},
-        "late_interaction": {"type": "boolean"},
-        "vector_name": {"type": "string"},
-    },
-    "required": ["collection_name", "vector_size", "distance"],
-    "additionalProperties": True,
-})
+COLLECTION_RESULT_SCHEMA: dict[str, Any] = _envelope(
+    {
+        "type": "object",
+        "properties": {
+            "collection_name": {"type": "string"},
+            "vector_size": {"type": "integer"},
+            "distance": {"type": "string"},
+            "embedding_model": {"type": "string"},
+            "sparse_model": {"type": "string"},
+            "hybrid": {"type": "boolean"},
+            "late_interaction_model": {"type": "string"},
+            "late_interaction": {"type": "boolean"},
+            "vector_name": {"type": "string"},
+        },
+        "required": ["collection_name", "vector_size", "distance"],
+        "additionalProperties": True,
+    }
+)
 
-INGEST_FILE_SCHEMA: dict[str, Any] = _envelope({
-    "type": "object",
-    "properties": {
-        "file_path": {"type": "string"},
-        "filename": {"type": "string"},
-        "document_id": {"type": "string"},
-        "collection": {"type": "string"},
-        "chunks_stored": {"type": "integer"},
-        "extractor_used": {"type": "string"},
-        "char_count": {"type": "integer"},
-        "page_count": {"type": ["integer", "null"]},
-    },
-    "required": ["file_path", "filename", "document_id", "collection", "chunks_stored", "extractor_used", "char_count"],
-    "additionalProperties": True,
-})
+INGEST_FILE_SCHEMA: dict[str, Any] = _envelope(
+    {
+        "type": "object",
+        "properties": {
+            "file_path": {"type": "string"},
+            "filename": {"type": "string"},
+            "document_id": {"type": "string"},
+            "collection": {"type": "string"},
+            "chunks_stored": {"type": "integer"},
+            "extractor_used": {"type": "string"},
+            "char_count": {"type": "integer"},
+            "page_count": {"type": ["integer", "null"]},
+        },
+        "required": [
+            "file_path",
+            "filename",
+            "document_id",
+            "collection",
+            "chunks_stored",
+            "extractor_used",
+            "char_count",
+        ],
+        "additionalProperties": True,
+    }
+)
 
-INGEST_FOLDER_SCHEMA: dict[str, Any] = _envelope({
-    "type": "object",
-    "additionalProperties": True,
-})
+INGEST_FOLDER_SCHEMA: dict[str, Any] = _envelope(
+    {
+        "type": "object",
+        "additionalProperties": True,
+    }
+)
 
-SEARCH_DOCUMENTS_SCHEMA: dict[str, Any] = _envelope({
-    "type": "object",
-    "properties": {
-        "query": {"type": "string"},
-        "mode": {"type": "string"},
-        "grouped_by_document": {"type": "boolean"},
-        "results": {
-            "type": "array",
-            "items": {
-                "type": "object",
-                "properties": {
-                    "document_id": {"type": "string"},
-                    "path": {"type": "string"},
-                    "filename": {"type": "string"},
-                    "title": {"type": ["string", "null"]},
-                    "snippet": {"type": "string"},
-                    "score": {"type": "number"},
-                    "chunk_count": {"type": "integer"},
-                    "chunks": {
-                        "type": "array",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "content": {"type": "string"},
-                                "score": {"type": "number"},
-                                "chunk_index": {"type": ["integer", "null"]},
-                                "metadata": {"type": "object", "additionalProperties": True},
+SEARCH_DOCUMENTS_SCHEMA: dict[str, Any] = _envelope(
+    {
+        "type": "object",
+        "properties": {
+            "query": {"type": "string"},
+            "mode": {"type": "string"},
+            "grouped_by_document": {"type": "boolean"},
+            "results": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "document_id": {"type": "string"},
+                        "path": {"type": "string"},
+                        "filename": {"type": "string"},
+                        "title": {"type": ["string", "null"]},
+                        "snippet": {"type": "string"},
+                        "score": {"type": "number"},
+                        "chunk_count": {"type": "integer"},
+                        "chunks": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "content": {"type": "string"},
+                                    "score": {"type": "number"},
+                                    "chunk_index": {"type": ["integer", "null"]},
+                                    "metadata": {
+                                        "type": "object",
+                                        "additionalProperties": True,
+                                    },
+                                },
+                                "required": [
+                                    "content",
+                                    "score",
+                                    "chunk_index",
+                                    "metadata",
+                                ],
+                                "additionalProperties": True,
                             },
-                            "required": ["content", "score", "chunk_index", "metadata"],
-                            "additionalProperties": True,
                         },
+                        "metadata": {"type": "object", "additionalProperties": True},
                     },
-                    "metadata": {"type": "object", "additionalProperties": True},
+                    "required": [
+                        "document_id",
+                        "snippet",
+                        "score",
+                        "chunk_count",
+                        "chunks",
+                        "metadata",
+                    ],
+                    "additionalProperties": True,
                 },
-                "required": ["document_id", "snippet", "score", "chunk_count", "chunks", "metadata"],
-                "additionalProperties": True,
             },
         },
-    },
-    "required": ["query", "mode", "grouped_by_document", "results"],
-    "additionalProperties": True,
-})
+        "required": ["query", "mode", "grouped_by_document", "results"],
+        "additionalProperties": True,
+    }
+)
 
-INDEX_SCHEMA: dict[str, Any] = _envelope({
-    "type": "object",
-    "properties": {
-        "collection": {"type": "string"},
-        "indexes_ensured": {"type": "array", "items": {"type": "string"}},
-    },
-    "required": ["collection", "indexes_ensured"],
-    "additionalProperties": True,
-})
+INDEX_SCHEMA: dict[str, Any] = _envelope(
+    {
+        "type": "object",
+        "properties": {
+            "collection": {"type": "string"},
+            "indexes_ensured": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["collection", "indexes_ensured"],
+        "additionalProperties": True,
+    }
+)
 
-DISCOVERY_SCHEMA: dict[str, Any] = _envelope({"type": "object", "additionalProperties": True})
-DELETE_COLLECTION_SCHEMA: dict[str, Any] = _envelope({"type": "object", "additionalProperties": True})
-SET_COLLECTION_MODEL_SCHEMA: dict[str, Any] = _envelope({
-    "type": "object",
-    "properties": {
-        "collection": {"type": "string"},
-        "embedding_model": {"type": "string"},
-        "vector_size": {"type": "integer"},
-    },
-    "required": ["collection", "embedding_model", "vector_size"],
-    "additionalProperties": True,
-})
+DISCOVERY_SCHEMA: dict[str, Any] = _envelope(
+    {"type": "object", "additionalProperties": True}
+)
+DELETE_COLLECTION_SCHEMA: dict[str, Any] = _envelope(
+    {"type": "object", "additionalProperties": True}
+)
+SET_COLLECTION_MODEL_SCHEMA: dict[str, Any] = _envelope(
+    {
+        "type": "object",
+        "properties": {
+            "collection": {"type": "string"},
+            "embedding_model": {"type": "string"},
+            "vector_size": {"type": "integer"},
+        },
+        "required": ["collection", "embedding_model", "vector_size"],
+        "additionalProperties": True,
+    }
+)
 
 TOOL_OUTPUT_SCHEMAS: dict[str, dict[str, Any]] = {
     "create_collection": COLLECTION_RESULT_SCHEMA,

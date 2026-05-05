@@ -14,11 +14,11 @@ _retrieval_warnings: contextvars.ContextVar[list[str] | None] = contextvars.Cont
     "_retrieval_warnings", default=None
 )
 
-from pydantic import BaseModel
-from qdrant_client import AsyncQdrantClient, models
+from pydantic import BaseModel  # noqa: E402
+from qdrant_client import AsyncQdrantClient, models  # noqa: E402
 
-from raggy_mcp.embeddings.base import EmbeddingProvider
-from raggy_mcp.settings import METADATA_PATH
+from raggy_mcp.embeddings.base import EmbeddingProvider  # noqa: E402
+from raggy_mcp.settings import METADATA_PATH  # noqa: E402
 
 logger = logging.getLogger(__name__)
 DEFAULT_EMBEDDING_BATCH_SIZE = 4
@@ -44,6 +44,7 @@ def _embedding_batch_size() -> int:
 
 class CollectionInfo(BaseModel):
     """Information about a Qdrant collection."""
+
     name: str
     vectors_count: int = 0
     indexed_vectors_count: int = 0
@@ -54,8 +55,10 @@ class CollectionInfo(BaseModel):
     vector_size: int | None = None
     distance_metric: str | None = None
 
+
 class BatchEntry(BaseModel):
     """Entry for batch operations."""
+
     content: str
     metadata: Metadata | None = None
     id: str | None = None
@@ -95,7 +98,9 @@ class QdrantConnector:
         self._default_collection_name = collection_name
         self._embedding_provider = embedding_provider
         self._client = AsyncQdrantClient(
-            location=qdrant_url, api_key=qdrant_api_key, path=qdrant_local_path,
+            location=qdrant_url,
+            api_key=qdrant_api_key,
+            path=qdrant_local_path,
             http2=False,  # Prevent HTTP/2 multiplexing races with concurrent coroutines
         )
         self._field_indexes = field_indexes
@@ -125,12 +130,15 @@ class QdrantConnector:
 
         # Embed the document
         embeddings = await self._embedding_provider.embed_documents([entry.content])
-        
+
         # Use `models.PointStruct` with actual embeddings
         points = [
             models.PointStruct(
                 id=uuid.uuid4().hex,
-                payload={"document": entry.content, METADATA_PATH: entry.metadata or {}},
+                payload={
+                    "document": entry.content,
+                    METADATA_PATH: entry.metadata or {},
+                },
                 vector={self._embedding_provider.get_vector_name(): embeddings[0]},
             )
         ]
@@ -169,14 +177,16 @@ class QdrantConnector:
 
         provider = embedding_provider or self._embedding_provider
         # Always use client-side embedding for now to ensure consistency in tests
-        return await self._search_client_side(query, collection_name, limit, query_filter, provider)
+        return await self._search_client_side(
+            query, collection_name, limit, query_filter, provider
+        )
 
     async def _search_server_side(
         self,
         query: str,
         collection_name: str,
         limit: int,
-        query_filter: models.Filter | None
+        query_filter: models.Filter | None,
     ) -> list[Entry]:
         """Server-side embedding using Qdrant's FastEmbed integration."""
 
@@ -223,7 +233,11 @@ class QdrantConnector:
         """Process search results into Entry objects."""
         return [
             Entry(
-                content=(point.payload["document"] if point.payload and "document" in point.payload else ""),
+                content=(
+                    point.payload["document"]
+                    if point.payload and "document" in point.payload
+                    else ""
+                ),
                 metadata=(point.payload.get(METADATA_PATH) if point.payload else None),
             )
             for point in points
@@ -245,7 +259,9 @@ class QdrantConnector:
             vector_size = provider.get_vector_size()
             vector_name = provider.get_vector_name()
 
-            logger.info(f"Creating collection '{collection_name}' with vector name '{vector_name}' and size {vector_size}")
+            logger.info(
+                f"Creating collection '{collection_name}' with vector name '{vector_name}' and size {vector_size}"
+            )
 
             await self._client.create_collection(
                 collection_name=collection_name,
@@ -270,10 +286,12 @@ class QdrantConnector:
             await self._client.create_payload_index(
                 collection_name=collection_name,
                 field_name="document",
-                field_schema=models.TextIndexParams(type=models.TextIndexType.TEXT)
+                field_schema=models.TextIndexParams(type=models.TextIndexType.TEXT),
             )
 
-    async def get_detailed_collection_info(self, collection_name: str) -> CollectionInfo | None:
+    async def get_detailed_collection_info(
+        self, collection_name: str
+    ) -> CollectionInfo | None:
         """
         Get detailed information about a collection.
         :param collection_name: The name of the collection.
@@ -289,31 +307,43 @@ class QdrantConnector:
             # Extract vector configuration
             vector_size = None
             distance_metric = None
-            if hasattr(info, 'config') and info.config and hasattr(info.config, 'params'):
-                if hasattr(info.config.params, 'vectors'):
+            if (
+                hasattr(info, "config")
+                and info.config
+                and hasattr(info.config, "params")
+            ):
+                if hasattr(info.config.params, "vectors"):
                     vectors_config = info.config.params.vectors
                     # vectors_config is usually a dict of vector_name -> VectorParams
                     if isinstance(vectors_config, dict):
                         # Take the first vector config if available
                         for vp in vectors_config.values():
-                            if hasattr(vp, 'size'):
+                            if hasattr(vp, "size"):
                                 vector_size = vp.size
-                            if hasattr(vp, 'distance'):
-                                distance_metric = vp.distance.name if hasattr(vp.distance, 'name') else str(vp.distance)
+                            if hasattr(vp, "distance"):
+                                distance_metric = (
+                                    vp.distance.name
+                                    if hasattr(vp.distance, "name")
+                                    else str(vp.distance)
+                                )
                             break  # Only use the first vector config
                     # If it's a single VectorParams (older qdrant), handle that as well
-                    elif vectors_config is not None and hasattr(vectors_config, 'size'):
+                    elif vectors_config is not None and hasattr(vectors_config, "size"):
                         vector_size = vectors_config.size
-                        if hasattr(vectors_config, 'distance'):
-                            distance_metric = vectors_config.distance.name if hasattr(vectors_config.distance, 'name') else str(vectors_config.distance)
+                        if hasattr(vectors_config, "distance"):
+                            distance_metric = (
+                                vectors_config.distance.name
+                                if hasattr(vectors_config.distance, "name")
+                                else str(vectors_config.distance)
+                            )
 
             # For small collections, Qdrant doesn't report vectors_count but points_count indicates stored vectors
-            points_count = getattr(info, 'points_count', 0) or 0
-            indexed_vectors_count = getattr(info, 'indexed_vectors_count', 0) or 0
+            points_count = getattr(info, "points_count", 0) or 0
+            indexed_vectors_count = getattr(info, "indexed_vectors_count", 0) or 0
 
             # If indexed_vectors_count is 0 but we have points, assume vectors are stored but not indexed
             # This happens for collections below the indexing threshold
-            vectors_count = getattr(info, 'vectors_count', None)
+            vectors_count = getattr(info, "vectors_count", None)
             if vectors_count is None:
                 vectors_count = points_count  # Assume each point has a vector for collections below indexing threshold
 
@@ -322,11 +352,12 @@ class QdrantConnector:
                 vectors_count=vectors_count,
                 indexed_vectors_count=indexed_vectors_count,
                 points_count=points_count,
-                segments_count=getattr(info, 'segments_count', 0) or 0,
-                status=getattr(info, 'status', 'unknown') or 'unknown',
-                optimizer_status=getattr(info, 'optimizer_status', 'unknown') or 'unknown',
+                segments_count=getattr(info, "segments_count", 0) or 0,
+                status=getattr(info, "status", "unknown") or "unknown",
+                optimizer_status=getattr(info, "optimizer_status", "unknown")
+                or "unknown",
                 vector_size=vector_size,
-                distance_metric=distance_metric
+                distance_metric=distance_metric,
             )
         except Exception as e:
             logger.error(f"Error getting collection info for {collection_name}: {e}")
@@ -351,7 +382,7 @@ class QdrantConnector:
         collection_name: str,
         vector_size: int,
         distance: str = "cosine",
-        embedding_provider: EmbeddingProvider | None = None
+        embedding_provider: EmbeddingProvider | None = None,
     ) -> bool:
         """
         Create a new collection with specified configuration.
@@ -367,13 +398,17 @@ class QdrantConnector:
                 "cosine": models.Distance.COSINE,
                 "dot": models.Distance.DOT,
                 "euclidean": models.Distance.EUCLID,
-                "manhattan": models.Distance.MANHATTAN
+                "manhattan": models.Distance.MANHATTAN,
             }
 
             distance_metric = distance_map.get(distance.lower(), models.Distance.COSINE)
 
             # Use embedding provider vector name if provided, otherwise use the default embedding provider's name
-            vector_name = embedding_provider.get_vector_name() if embedding_provider else self._embedding_provider.get_vector_name()
+            vector_name = (
+                embedding_provider.get_vector_name()
+                if embedding_provider
+                else self._embedding_provider.get_vector_name()
+            )
 
             await self._client.create_collection(
                 collection_name=collection_name,
@@ -427,7 +462,9 @@ class QdrantConnector:
         assert collection_name is not None
         provider = embedding_provider or self._embedding_provider
 
-        await self._ensure_collection_exists(collection_name, embedding_provider=provider)
+        await self._ensure_collection_exists(
+            collection_name, embedding_provider=provider
+        )
 
         try:
             batch_size = _embedding_batch_size()
@@ -461,7 +498,10 @@ class QdrantConnector:
                     points.append(
                         models.PointStruct(
                             id=point_id,
-                            payload={"document": entry.content, METADATA_PATH: entry.metadata or {}},
+                            payload={
+                                "document": entry.content,
+                                METADATA_PATH: entry.metadata or {},
+                            },
                             vector={provider.get_vector_name(): embeddings[i]},
                         )
                     )
@@ -473,7 +513,9 @@ class QdrantConnector:
                 )
                 stored += len(points)
 
-            logger.info(f"Successfully stored {stored} entries in collection '{collection_name}'.")
+            logger.info(
+                f"Successfully stored {stored} entries in collection '{collection_name}'."
+            )
             return stored
 
         except Exception as e:
@@ -487,7 +529,7 @@ class QdrantConnector:
         offset: str | None = None,
         query_filter: models.Filter | None = None,
         with_payload: bool = True,
-        with_vectors: bool = False
+        with_vectors: bool = False,
     ) -> tuple[list[Entry], str | None]:
         """
         Scroll through collection contents with pagination.
@@ -513,7 +555,7 @@ class QdrantConnector:
                 offset=offset,
                 scroll_filter=query_filter,
                 with_payload=with_payload,
-                with_vectors=with_vectors
+                with_vectors=with_vectors,
             )
 
             entries = []
@@ -524,7 +566,12 @@ class QdrantConnector:
                     entries.append(Entry(content=content, metadata=metadata))
                 else:
                     # If no payload, create entry with point ID as content
-                    entries.append(Entry(content=f"Point ID: {point.id}", metadata={"point_id": point.id}))
+                    entries.append(
+                        Entry(
+                            content=f"Point ID: {point.id}",
+                            metadata={"point_id": point.id},
+                        )
+                    )
 
             next_offset = str(result[1]) if result[1] is not None else None
             return entries, next_offset  # entries, next_offset
@@ -561,7 +608,9 @@ class QdrantConnector:
             return []
 
         provider = embedding_provider or self._embedding_provider
-        return await self._hybrid_search_client_side(query, collection_name, limit, query_filter, min_score, provider)
+        return await self._hybrid_search_client_side(
+            query, collection_name, limit, query_filter, min_score, provider
+        )
 
     async def _hybrid_search_server_side(
         self,
@@ -609,15 +658,21 @@ class QdrantConnector:
             with_vectors=False,
             score_threshold=min_score,
         )
-        
+
         return self._process_scored_results(search_results_raw.points)
 
-    def _process_scored_results(self, points: list[models.ScoredPoint]) -> list[tuple[Entry, float]]:
+    def _process_scored_results(
+        self, points: list[models.ScoredPoint]
+    ) -> list[tuple[Entry, float]]:
         """Process scored search results into (Entry, score) tuples."""
         results = []
         for point in points:
             entry = Entry(
-                content=(point.payload["document"] if point.payload and "document" in point.payload else ""),
+                content=(
+                    point.payload["document"]
+                    if point.payload and "document" in point.payload
+                    else ""
+                ),
                 metadata=(point.payload.get(METADATA_PATH) if point.payload else None),
             )
             results.append((entry, point.score))
@@ -713,7 +768,9 @@ class QdrantConnector:
                     )
             return True
         except Exception as e:
-            logger.error(f"Error creating late-interaction collection {collection_name}: {e}")
+            logger.error(
+                f"Error creating late-interaction collection {collection_name}: {e}"
+            )
             return False
 
     async def batch_store_late_interaction(
@@ -738,7 +795,7 @@ class QdrantConnector:
             stored = 0
 
             for start in range(0, len(entries), batch_size):
-                batch = entries[start:start + batch_size]
+                batch = entries[start : start + batch_size]
                 documents = [e.content for e in batch]
                 vectors = await late_interaction_provider.embed_documents(documents)
 
@@ -755,12 +812,17 @@ class QdrantConnector:
                     points.append(
                         models.PointStruct(
                             id=point_id,
-                            payload={"document": entry.content, METADATA_PATH: entry.metadata or {}},
+                            payload={
+                                "document": entry.content,
+                                METADATA_PATH: entry.metadata or {},
+                            },
                             vector={vector_name: vectors[i]},
                         )
                     )
 
-                await self._client.upsert(collection_name=collection_name, points=points, wait=True)
+                await self._client.upsert(
+                    collection_name=collection_name, points=points, wait=True
+                )
                 stored += len(batch)
 
             return stored
@@ -791,7 +853,10 @@ class QdrantConnector:
                 except Exception as e:
                     logger.error(
                         "Error embedding hybrid batch %s-%s in %r: %s",
-                        start, start + len(entry_batch), collection_name, e,
+                        start,
+                        start + len(entry_batch),
+                        collection_name,
+                        e,
                     )
                     raise
 
@@ -805,25 +870,34 @@ class QdrantConnector:
                     else:
                         point_id = uuid.uuid4().hex
 
-                    points.append(models.PointStruct(
-                        id=point_id,
-                        payload={"document": entry.content, METADATA_PATH: entry.metadata or {}},
-                        vector={
-                            dense_name: dense[i],
-                            sparse_name: models.SparseVector(
-                                indices=sparse[i]["indices"],
-                                values=sparse[i]["values"],
-                            ),
-                        },
-                    ))
+                    points.append(
+                        models.PointStruct(
+                            id=point_id,
+                            payload={
+                                "document": entry.content,
+                                METADATA_PATH: entry.metadata or {},
+                            },
+                            vector={
+                                dense_name: dense[i],
+                                sparse_name: models.SparseVector(
+                                    indices=sparse[i]["indices"],
+                                    values=sparse[i]["values"],
+                                ),
+                            },
+                        )
+                    )
 
-                await self._client.upsert(collection_name=collection_name, points=points, wait=True)
+                await self._client.upsert(
+                    collection_name=collection_name, points=points, wait=True
+                )
                 stored += len(points)
 
             logger.info("Hybrid stored %s entries in %r.", stored, collection_name)
             return stored
         except Exception as e:
-            logger.error("Error in batch_store_hybrid: %s (stored %s so far)", e, stored)
+            logger.error(
+                "Error in batch_store_hybrid: %s (stored %s so far)", e, stored
+            )
             return stored
 
     async def search_hybrid_rrf(
@@ -923,7 +997,8 @@ class QdrantConnector:
             except Exception as fallback_err:
                 logger.error(
                     "Dense fallback also failed for collection %r: %s",
-                    collection_name, fallback_err,
+                    collection_name,
+                    fallback_err,
                 )
                 return []
 

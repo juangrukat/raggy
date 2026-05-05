@@ -5,7 +5,9 @@ import yaml
 
 def test_local_configure_hermes_writes_direct_venv_entry(tmp_path):
     config_path = tmp_path / "config.yaml"
-    config_path.write_text("mcp_servers:\n  other:\n    command: echo\n", encoding="utf-8")
+    config_path.write_text(
+        "mcp_servers:\n  other:\n    command: echo\n", encoding="utf-8"
+    )
 
     subprocess.run(
         [

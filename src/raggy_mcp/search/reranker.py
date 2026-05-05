@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class RerankCandidate:
     """One candidate passed into the reranker; preserves original payload for re-emission."""
+
     content: str
     metadata: dict | None
     first_stage_score: float
@@ -59,8 +60,7 @@ class Reranker(ABC):
 
     @property
     @abstractmethod
-    def model_name(self) -> str:
-        ...
+    def model_name(self) -> str: ...
 
 
 class NoOpReranker(Reranker):
@@ -115,6 +115,7 @@ class FastEmbedReranker(Reranker):
         to opt in.
         """
         import os
+
         env_providers = os.getenv("QDRANT_RERANKER_PROVIDERS")
         if env_providers:
             return [p.strip() for p in env_providers.split(",")]
@@ -137,6 +138,7 @@ class FastEmbedReranker(Reranker):
             )
         providers = self._resolve_providers()
         import logging
+
         _log = logging.getLogger(__name__)
         _log.info("FastEmbedReranker using providers: %s", providers)
         self._encoder = TextCrossEncoder(self._model_name, providers=providers)
@@ -154,7 +156,8 @@ class FastEmbedReranker(Reranker):
         loop = asyncio.get_event_loop()
         texts = [c.content for c in candidates]
         scores = await loop.run_in_executor(
-            None, lambda: list(self._encoder.rerank(query, texts))
+            None,
+            lambda: list(self._encoder.rerank(query, texts)),  # type: ignore[union-attr,attr-defined]
         )
         scored = list(zip(candidates, scores))
         scored.sort(key=lambda kv: kv[1], reverse=True)
@@ -180,7 +183,7 @@ class QwenReranker(Reranker):
     _SYSTEM_PROMPT = (
         "<|im_start|>system\nJudge whether the Document meets the requirements "
         "based on the Query and the Instruct provided. Note that the answer can "
-        "only be \"yes\" or \"no\".<|im_end|>\n<|im_start|>user\n"
+        'only be "yes" or "no".<|im_end|>\n<|im_start|>user\n'
     )
     _RESPONSE_TEMPLATE = "<|im_end|>\n<|im_start|>assistant\n<think>\n\n</think>\n\n"
     _DEFAULT_INSTRUCTION = (
@@ -237,36 +240,47 @@ class QwenReranker(Reranker):
         dtype = torch.float32 if device == "cpu" else torch.float16
 
         tokenizer = AutoTokenizer.from_pretrained(self._model_name, padding_side="left")
-        model = AutoModelForCausalLM.from_pretrained(
-            self._model_name,
-            torch_dtype=dtype,
-        ).to(device).eval()
+        model = (
+            AutoModelForCausalLM.from_pretrained(
+                self._model_name,
+                torch_dtype=dtype,
+            )
+            .to(device)
+            .eval()
+        )
 
         self._tokenizer = tokenizer
         self._model = model
         self._device = device
         self._token_true_id = tokenizer.convert_tokens_to_ids("yes")
         self._token_false_id = tokenizer.convert_tokens_to_ids("no")
-        self._prefix_tokens = tokenizer.encode(self._SYSTEM_PROMPT, add_special_tokens=False)
-        self._suffix_tokens = tokenizer.encode(self._RESPONSE_TEMPLATE, add_special_tokens=False)
+        self._prefix_tokens = tokenizer.encode(
+            self._SYSTEM_PROMPT, add_special_tokens=False
+        )
+        self._suffix_tokens = tokenizer.encode(
+            self._RESPONSE_TEMPLATE, add_special_tokens=False
+        )
         logger.info(
             "%s loaded (%s, dtype=%s, true_id=%s, false_id=%s)",
-            self._model_name, device, dtype,
-            self._token_true_id, self._token_false_id,
+            self._model_name,
+            device,
+            dtype,
+            self._token_true_id,
+            self._token_false_id,
         )
 
     def _format_pair(self, query: str, doc: str) -> str:
-        return (
-            f"<Instruct>: {self._instruction}\n"
-            f"<Query>: {query}\n"
-            f"<Document>: {doc}"
-        )
+        return f"<Instruct>: {self._instruction}\n<Query>: {query}\n<Document>: {doc}"
 
     def _score_batch_sync(self, query: str, texts: list[str]) -> list[float]:
         import torch
 
+        assert self._tokenizer is not None and self._model is not None
+
         pairs = [self._format_pair(query, t) for t in texts]
-        usable_len = self._max_length - len(self._prefix_tokens) - len(self._suffix_tokens)
+        usable_len = (
+            self._max_length - len(self._prefix_tokens) - len(self._suffix_tokens)
+        )
         inputs = self._tokenizer(
             pairs,
             padding=False,
@@ -310,7 +324,8 @@ class QwenReranker(Reranker):
         for i in range(0, len(texts), self._batch_size):
             batch = texts[i : i + self._batch_size]
             scores = await loop.run_in_executor(
-                None, lambda b=batch: self._score_batch_sync(query, b)
+                None,
+                lambda b=batch: self._score_batch_sync(query, b),  # type: ignore[misc]
             )
             all_scores.extend(scores)
 

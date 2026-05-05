@@ -83,14 +83,18 @@ async def test_streamable_http_supports_concurrent_clients():
         name="transport-http-test",
     )
     app = server.http_app(transport="streamable-http")
-    config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning", ws="none")
+    config = uvicorn.Config(
+        app, host="127.0.0.1", port=port, log_level="warning", ws="none"
+    )
     uvicorn_server = uvicorn.Server(config)
     thread = threading.Thread(target=uvicorn_server.run, daemon=True)
     thread.start()
     _wait_for_port(port)
 
     async def list_tool_names() -> set[str]:
-        async with Client(f"http://127.0.0.1:{port}/mcp/", init_timeout=15, timeout=15) as client:
+        async with Client(
+            f"http://127.0.0.1:{port}/mcp/", init_timeout=15, timeout=15
+        ) as client:
             tools = await client.list_tools()
             return {tool.name for tool in tools}
 

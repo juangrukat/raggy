@@ -3,15 +3,17 @@
 import pytest
 
 from raggy_mcp.search.reranker import (
-    NoOpReranker,
     FastEmbedReranker,
+    NoOpReranker,
     QwenReranker,
     RerankCandidate,
     build_default_reranker,
 )
 
 
-def _candidates(texts: list[str], scores: list[float] | None = None) -> list[RerankCandidate]:
+def _candidates(
+    texts: list[str], scores: list[float] | None = None
+) -> list[RerankCandidate]:
     if scores is None:
         scores = [float(i) for i in range(len(texts))]
     return [
@@ -81,7 +83,6 @@ def test_qwen_reranker_format_pair():
 async def test_qwen_reranker_raises_without_torch():
     """QwenReranker raises RuntimeError (not NotImplementedError) if torch is missing."""
     import importlib
-    import sys
 
     torch_present = importlib.util.find_spec("torch") is not None
     transformers_present = importlib.util.find_spec("transformers") is not None

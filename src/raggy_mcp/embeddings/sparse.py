@@ -8,7 +8,6 @@ from typing import Any
 
 from fastembed import SparseTextEmbedding
 
-
 _DEFAULT_SPARSE_MODEL = "Qdrant/bm25"
 
 

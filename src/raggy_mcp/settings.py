@@ -12,23 +12,23 @@ from raggy_mcp.embeddings.types import EmbeddingProviderType
 
 # Import enhanced descriptions
 from raggy_mcp.enhanced_tool_descriptions import (
-    DEFAULT_TOOL_STORE_DESCRIPTION,
-    DEFAULT_TOOL_FIND_DESCRIPTION,
     DEFAULT_TOOL_BATCH_STORE_DESCRIPTION,
-    DEFAULT_TOOL_SCROLL_DESCRIPTION,
-    DEFAULT_TOOL_LIST_COLLECTIONS_DESCRIPTION,
+    DEFAULT_TOOL_BOOTSTRAP_INDEXES_DESCRIPTION,
     DEFAULT_TOOL_CREATE_COLLECTION_DESCRIPTION,
-    DEFAULT_TOOL_GET_COLLECTION_INFO_DESCRIPTION,
+    DEFAULT_TOOL_CREATE_HYBRID_COLLECTION_DESCRIPTION,
     DEFAULT_TOOL_DELETE_COLLECTION_DESCRIPTION,
+    DEFAULT_TOOL_FIND_DESCRIPTION,
+    DEFAULT_TOOL_GET_COLLECTION_INFO_DESCRIPTION,
     DEFAULT_TOOL_HYBRID_SEARCH_DESCRIPTION,
-    DEFAULT_TOOL_SET_COLLECTION_EMBEDDING_MODEL_DESCRIPTION,
-    DEFAULT_TOOL_LIST_EMBEDDING_MODELS_DESCRIPTION,
-    DEFAULT_TOOL_SET_COLLECTION_EMBEDDING_MODEL_IMPL_DESCRIPTION,
     DEFAULT_TOOL_INGEST_FILE_DESCRIPTION,
     DEFAULT_TOOL_INGEST_FOLDER_DESCRIPTION,
+    DEFAULT_TOOL_LIST_COLLECTIONS_DESCRIPTION,
+    DEFAULT_TOOL_LIST_EMBEDDING_MODELS_DESCRIPTION,
+    DEFAULT_TOOL_SCROLL_DESCRIPTION,
     DEFAULT_TOOL_SEARCH_DOCUMENTS_DESCRIPTION,
-    DEFAULT_TOOL_BOOTSTRAP_INDEXES_DESCRIPTION,
-    DEFAULT_TOOL_CREATE_HYBRID_COLLECTION_DESCRIPTION,
+    DEFAULT_TOOL_SET_COLLECTION_EMBEDDING_MODEL_DESCRIPTION,
+    DEFAULT_TOOL_SET_COLLECTION_EMBEDDING_MODEL_IMPL_DESCRIPTION,
+    DEFAULT_TOOL_STORE_DESCRIPTION,
 )
 
 METADATA_PATH = "metadata"
@@ -221,8 +221,9 @@ class QdrantSettings(BaseSettings):
 
     # Removed artificial batch size limit - now unlimited
     max_batch_size: int = Field(
-        default=10000, validation_alias="QDRANT_MAX_BATCH_SIZE",
-        description="Maximum batch size for operations. Default is 10000 (effectively unlimited for most use cases)"
+        default=10000,
+        validation_alias="QDRANT_MAX_BATCH_SIZE",
+        description="Maximum batch size for operations. Default is 10000 (effectively unlimited for most use cases)",
     )
     write_max_concurrency: int = Field(
         default=1,
@@ -306,7 +307,10 @@ class QdrantSettings(BaseSettings):
     def check_local_path_conflict(self) -> "QdrantSettings":
         if self.local_path and (self.location is not None or self.api_key is not None):
             local_path_was_explicit = "local_path" in self.model_fields_set
-            if not local_path_was_explicit and self.local_path == DEFAULT_LOCAL_STORAGE_PATH:
+            if (
+                not local_path_was_explicit
+                and self.local_path == DEFAULT_LOCAL_STORAGE_PATH
+            ):
                 self.local_path = None
             else:
                 raise ValueError(

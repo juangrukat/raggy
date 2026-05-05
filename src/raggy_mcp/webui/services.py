@@ -6,19 +6,19 @@ from pathlib import Path
 from typing import Any
 
 from raggy_mcp.embedding_manager import EnhancedEmbeddingModelManager
-from raggy_mcp.embeddings.sparse import SparseEmbeddingProvider
 from raggy_mcp.embeddings.late_interaction import (
     DEFAULT_LATE_INTERACTION_MODEL,
     LateInteractionEmbeddingProvider,
 )
+from raggy_mcp.embeddings.sparse import SparseEmbeddingProvider
 from raggy_mcp.mcp_runtime.write_queue import WriteQueue
-from raggy_mcp.qdrant import BatchEntry, QdrantConnector
+from raggy_mcp.qdrant import QdrantConnector
 from raggy_mcp.search.reranker import build_default_reranker
 from raggy_mcp.settings import EmbeddingProviderSettings, QdrantSettings
 
 # ── Singletons ──
 _qdrant: QdrantSettings | None = None
-_qdrant_lock: asyncio.Lock | None = None
+_qdrant_lock: asyncio.Lock = asyncio.Lock()
 _embedding: EmbeddingProviderSettings | None = None
 _connector: QdrantConnector | None = None
 _embedding_manager: EnhancedEmbeddingModelManager | None = None
@@ -66,8 +66,10 @@ async def init_services() -> None:
     config_path = _detect_config_path()
     if config_path:
         import yaml
+
         _config_data = yaml.safe_load(Path(config_path).read_text()) or {}
 
+    global _qdrant_lock
     _qdrant_lock = asyncio.Lock()  # serialize all Qdrant HTTP/2 access
 
     if callable(getattr(_embedding_provider, "warm_up", None)):
@@ -79,29 +81,36 @@ async def init_services() -> None:
 
 # ── Accessors ──
 
+
 def get_qdrant_settings() -> QdrantSettings:
     assert _qdrant is not None
     return _qdrant
+
 
 def get_embedding_settings() -> EmbeddingProviderSettings:
     assert _embedding is not None
     return _embedding
 
+
 def get_connector() -> QdrantConnector:
     assert _connector is not None
     return _connector
+
 
 def get_embedding_manager() -> EnhancedEmbeddingModelManager:
     assert _embedding_manager is not None
     return _embedding_manager
 
+
 def get_embedding_provider():
     assert _embedding_provider is not None
     return _embedding_provider
 
+
 def get_write_queue() -> WriteQueue:
     assert _write_queue is not None
     return _write_queue
+
 
 def get_config_data() -> dict | None:
     return _config_data
@@ -144,7 +153,9 @@ async def get_health() -> dict:
         "status": "ok",
         "qdrant_mode": mode,
         "qdrant_url": url,
-        "embedding_model": ep.get_model_name() if hasattr(ep, "get_model_name") else str(ep),
+        "embedding_model": ep.get_model_name()
+        if hasattr(ep, "get_model_name")
+        else str(ep),
         "vector_size": ep.get_vector_size(),
         "tool_profile": q.mcp_tool_profile,
         "read_only": q.read_only,
@@ -172,9 +183,9 @@ async def search_documents(
     rerank_top_k: int | None = None,
 ) -> dict:
     """Search with optional system-default fallback for mode and model."""
+    from raggy_mcp.qdrant import _retrieval_warnings
     from raggy_mcp.search.document_search import search_documents_grouped
     from raggy_mcp.search.retrieval_mode import RetrievalMode
-    from raggy_mcp.qdrant import _retrieval_warnings
 
     conn = get_connector()
     qs = get_qdrant_settings()
@@ -227,13 +238,15 @@ async def search_documents(
 
     results = []
     for d in docs:
-        results.append({
-            "document_id": d["document_id"],
-            "path": d.get("path", ""),
-            "filename": d.get("filename", ""),
-            "score": d["score"],
-            "chunks": d["chunks"],
-        })
+        results.append(
+            {
+                "document_id": d["document_id"],
+                "path": d.get("path", ""),
+                "filename": d.get("filename", ""),
+                "score": d["score"],
+                "chunks": d["chunks"],
+            }
+        )
 
     return {
         "query": query,

@@ -30,7 +30,13 @@ SUPPLEMENTAL_MODELS = [
 class EmbeddingModelInfo:
     """Information about an available embedding model."""
 
-    def __init__(self, model_name: str, provider_type: str, vector_size: int, description: str = ""):
+    def __init__(
+        self,
+        model_name: str,
+        provider_type: str,
+        vector_size: int,
+        description: str = "",
+    ):
         self.model_name = model_name
         self.provider_type = provider_type
         self.vector_size = vector_size
@@ -41,7 +47,7 @@ class EmbeddingModelInfo:
             "model_name": self.model_name,
             "provider_type": self.provider_type,
             "vector_size": self.vector_size,
-            "description": self.description
+            "description": self.description,
         }
 
 
@@ -53,7 +59,9 @@ class EnhancedEmbeddingModelManager:
     def __init__(self, default_settings: EmbeddingProviderSettings):
         self.default_settings = default_settings
         self._available_models: List[EmbeddingModelInfo] = []
-        self._default_provider: EmbeddingProvider = create_embedding_provider(default_settings)
+        self._default_provider: EmbeddingProvider = create_embedding_provider(
+            default_settings
+        )
 
         self._populate_available_models()
 
@@ -62,29 +70,30 @@ class EnhancedEmbeddingModelManager:
         known_names: set[str] = set()
         try:
             from fastembed import TextEmbedding
+
             supported_models = TextEmbedding.list_supported_models()
             for model in supported_models:
-                name = model['model']
+                name = model["model"]
                 known_names.add(name)
                 self._available_models.append(
                     EmbeddingModelInfo(
                         model_name=name,
                         provider_type="fastembed",
-                        vector_size=model.get('dim', 0),
-                        description=model.get('description', '')
+                        vector_size=model.get("dim", 0),
+                        description=model.get("description", ""),
                     )
                 )
         except Exception as e:
             logger.error(f"Failed to populate available models: {e}")
 
         for model in SUPPLEMENTAL_MODELS:
-            if model['model'] not in known_names:
+            if model["model"] not in known_names:
                 self._available_models.append(
                     EmbeddingModelInfo(
-                        model_name=model['model'],
+                        model_name=model["model"],
                         provider_type="fastembed",
-                        vector_size=model['dim'],
-                        description=model.get('description', '')
+                        vector_size=model["dim"],
+                        description=model.get("description", ""),
                     )
                 )
 
@@ -106,13 +115,13 @@ class EnhancedEmbeddingModelManager:
     def create_provider_for_model(self, model_name: str) -> EmbeddingProvider:
         """Create a new embedding provider for the given model name."""
         settings = EmbeddingProviderSettings(
-            EMBEDDING_MODEL=model_name,
-            EMBEDDING_DEVICE=self.default_settings.device,
-            QWEN3_SIDECAR_PATH=self.default_settings.qwen3_sidecar_path,
-            QWEN3_MAX_LENGTH=self.default_settings.qwen3_max_length,
-            QWEN3_DTYPE=self.default_settings.qwen3_dtype,
-            QWEN3_METRICS_PATH=self.default_settings.qwen3_metrics_path,
-            QWEN3_RESPONSE_LIMIT_BYTES=self.default_settings.qwen3_response_limit_bytes,
+            model_name=model_name,
+            device=self.default_settings.device,
+            qwen3_sidecar_path=self.default_settings.qwen3_sidecar_path,
+            qwen3_max_length=self.default_settings.qwen3_max_length,
+            qwen3_dtype=self.default_settings.qwen3_dtype,
+            qwen3_metrics_path=self.default_settings.qwen3_metrics_path,
+            qwen3_response_limit_bytes=self.default_settings.qwen3_response_limit_bytes,
         )
         return create_embedding_provider(settings)
 

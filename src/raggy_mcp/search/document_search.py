@@ -54,11 +54,10 @@ from qdrant_client import models
 from raggy_mcp.qdrant import QdrantConnector
 from raggy_mcp.search.reranker import RerankCandidate, Reranker
 
-
 # Default candidate pool sizes.
-_DEFAULT_PREFETCH_DENSE   = 80   # dense-only or hybrid without reranking
-_DEFAULT_PREFETCH_RERANK  = 100  # with reranking: wider pool feeds the reranker
-_MAX_PREFETCH             = 300  # hard ceiling to avoid memory/latency blowout
+_DEFAULT_PREFETCH_DENSE = 80  # dense-only or hybrid without reranking
+_DEFAULT_PREFETCH_RERANK = 100  # with reranking: wider pool feeds the reranker
+_MAX_PREFETCH = 300  # hard ceiling to avoid memory/latency blowout
 
 # Diversity: max chunks from the same inferred "section" before we defer extras.
 # A section is the page number if available, else chunk_index // 5.
@@ -152,10 +151,12 @@ async def _fetch_candidates(
         # but if it returned empty for any reason, try pure dense before giving up.
         if not results:
             import logging as _logging
+
             _logging.getLogger(__name__).warning(
                 "Hybrid search returned 0 candidates for %r (query=%r). "
                 "Attempting pure dense fallback.",
-                collection_name, query[:80],
+                collection_name,
+                query[:80],
             )
             results = await connector.hybrid_search(
                 query=query,
@@ -268,18 +269,30 @@ async def search_documents_grouped(
 
     # Fetch candidates for the primary query
     primary_results = await _fetch_candidates(
-        connector, query, collection_name, prefetch_limit,
-        query_filter, sparse_provider, late_interaction_provider,
-        embedding_provider, min_score,
+        connector,
+        query,
+        collection_name,
+        prefetch_limit,
+        query_filter,
+        sparse_provider,
+        late_interaction_provider,
+        embedding_provider,
+        min_score,
     )
 
     # Fetch additional queries concurrently if provided
     if additional_queries:
         extra_tasks = [
             _fetch_candidates(
-                connector, q, collection_name, prefetch_limit,
-                query_filter, sparse_provider, late_interaction_provider,
-                embedding_provider, min_score,
+                connector,
+                q,
+                collection_name,
+                prefetch_limit,
+                query_filter,
+                sparse_provider,
+                late_interaction_provider,
+                embedding_provider,
+                min_score,
             )
             for q in additional_queries
         ]
@@ -288,54 +301,109 @@ async def search_documents_grouped(
     else:
         raw = primary_results
 
-    # Optional reranking pass — always against the PRIMARY query
-    if use_reranker and raw:
-        pool = raw if rerank_top_k is None else raw[:rerank_top_k]
-        candidates = [
-            RerankCandidate(
-                content=entry.content,
-                metadata=entry.metadata,
-                first_stage_score=score,
-                payload=entry,
-            )
-            for entry, score in pool
-        ]
-        reranked = await reranker.rerank(query, candidates)
-        raw = [(c.payload, score) for c, score in reranked]
+    # Rerank + diversity
+    raw = await _maybe_rerank(
+        raw, use_reranker, reranker, query, rerank_top_k, diversity
+    )
 
-        # Section diversity pass — reduce same-page cluster dominance
-        if diversity and raw:
-            raw = _diversity_pass(raw)
+    # Group by document
+    return _group_by_document(raw, limit, chunks_per_document)
 
-    # Group by document_id (fall back to path for legacy data)
+
+async def _maybe_rerank(
+    raw: list[tuple[Any, float]],
+    use_reranker: bool,
+    reranker: Reranker | None,
+    query: str,
+    rerank_top_k: int | None = None,
+    diversity: bool = True,
+) -> list[tuple[Any, float]]:
+    """Optional reranking pass — always against the PRIMARY query.
+
+    Parameters
+    ----------
+    raw : list[tuple[Any, float]]
+        Prefetch candidates as (entry, score) pairs.
+    use_reranker : bool
+        Whether a reranker is available.
+    reranker : Reranker | None
+        The reranker instance.
+    query : str
+        Primary query — reranker always scores against this.
+    rerank_top_k : int | None
+        Max candidates to pass to the reranker. None → all.
+    diversity : bool
+        Apply section-diversity pass after reranking.
+    """
+    if not use_reranker or not raw:
+        return raw
+
+    pool = raw if rerank_top_k is None else raw[:rerank_top_k]
+    candidates = [
+        RerankCandidate(
+            content=entry.content,
+            metadata=entry.metadata,
+            first_stage_score=score,
+            payload=entry,
+        )
+        for entry, score in pool
+    ]
+    assert reranker is not None
+    reranked = await reranker.rerank(query, candidates)  # type: ignore[union-attr]
+    raw = [(c.payload, score) for c, score in reranked]
+
+    if diversity:
+        raw = _diversity_pass(raw)
+    return raw
+
+
+def _group_by_document(
+    raw: list[tuple[Any, float]],
+    limit: int,
+    chunks_per_document: int,
+) -> list[dict[str, Any]]:
+    """Group raw chunk results by document_id and return top documents.
+
+    Parameters
+    ----------
+    raw : list[tuple[Any, float]]
+        Scored (entry, score) pairs after retrieval and optional reranking.
+    limit : int
+        Maximum distinct documents to return.
+    chunks_per_document : int
+        Best chunks to include per document.
+    """
     groups: dict[str, dict[str, Any]] = {}
     for entry, score in raw:
         meta = entry.metadata or {}
         doc_id = meta.get("document_id") or meta.get("path") or f"_chunk_{id(entry)}"
-        bucket = groups.setdefault(doc_id, {
-            "document_id": doc_id,
-            "filename": meta.get("filename"),
-            "path": meta.get("path"),
-            "content_type": meta.get("content_type"),
-            "tags": meta.get("tags"),
-            "modified_at": meta.get("modified_at"),
-            "score": score,
-            "chunks": [],
-        })
-        bucket["chunks"].append({
-            "content": entry.content,
-            "score": score,
-            "chunk_index": meta.get("chunk_index"),
-            "metadata": meta,
-        })
+        bucket = groups.setdefault(
+            doc_id,
+            {
+                "document_id": doc_id,
+                "filename": meta.get("filename"),
+                "path": meta.get("path"),
+                "content_type": meta.get("content_type"),
+                "tags": meta.get("tags"),
+                "modified_at": meta.get("modified_at"),
+                "score": score,
+                "chunks": [],
+            },
+        )
+        bucket["chunks"].append(
+            {
+                "content": entry.content,
+                "score": score,
+                "chunk_index": meta.get("chunk_index"),
+                "metadata": meta,
+            }
+        )
         if score > bucket["score"]:
             bucket["score"] = score
 
-    # Order each document's chunks by score desc, truncate to chunks_per_document
     for bucket in groups.values():
         bucket["chunks"].sort(key=lambda c: c["score"], reverse=True)
         bucket["chunks"] = bucket["chunks"][:chunks_per_document]
 
-    # Order documents by best score
     ordered = sorted(groups.values(), key=lambda g: g["score"], reverse=True)
     return ordered[:limit]

@@ -33,6 +33,7 @@ _loaded = False
 
 # ── Config file discovery ──────────────────────────────────────────────────
 
+
 def _find_config_file() -> Path | None:
     """Return the first existing config file path, or None."""
     # 1. Explicit env var
@@ -66,34 +67,34 @@ def _find_config_file() -> Path | None:
 # benchmark / collection-naming sections are informational.
 _YAML_TO_ENV: dict[str, str] = {
     # runtime
-    "runtime.qdrant_mode":              "QDRANT_MODE",
-    "runtime.qdrant_url":               "QDRANT_URL",
-    "runtime.qdrant_local_path":        "QDRANT_LOCAL_PATH",
-    "runtime.mcp_tool_profile":         "QDRANT_MCP_TOOL_PROFILE",
-    "runtime.read_only":                "QDRANT_READ_ONLY",
+    "runtime.qdrant_mode": "QDRANT_MODE",
+    "runtime.qdrant_url": "QDRANT_URL",
+    "runtime.qdrant_local_path": "QDRANT_LOCAL_PATH",
+    "runtime.mcp_tool_profile": "QDRANT_MCP_TOOL_PROFILE",
+    "runtime.read_only": "QDRANT_READ_ONLY",
     # models
-    "models.dense_embedding":           "EMBEDDING_MODEL",
-    "models.embedding_provider":        "EMBEDDING_PROVIDER",
-    "models.embedding_device":          "EMBEDDING_DEVICE",
-    "models.sparse_embedding":          "QDRANT_SPARSE_MODEL",
-    "models.reranker":                  "QDRANT_RERANKER_MODEL",
-    "models.reranker_instruction":      "QDRANT_RERANKER_INSTRUCTION",
-    "models.reranker_providers":        "QDRANT_RERANKER_PROVIDERS",
-    "models.qwen3.max_length":          "QWEN3_MAX_LENGTH",
-    "models.qwen3.dtype":               "QWEN3_DTYPE",
-    "models.qwen3.response_limit_bytes":"QWEN3_RESPONSE_LIMIT_BYTES",
+    "models.dense_embedding": "EMBEDDING_MODEL",
+    "models.embedding_provider": "EMBEDDING_PROVIDER",
+    "models.embedding_device": "EMBEDDING_DEVICE",
+    "models.sparse_embedding": "QDRANT_SPARSE_MODEL",
+    "models.reranker": "QDRANT_RERANKER_MODEL",
+    "models.reranker_instruction": "QDRANT_RERANKER_INSTRUCTION",
+    "models.reranker_providers": "QDRANT_RERANKER_PROVIDERS",
+    "models.qwen3.max_length": "QWEN3_MAX_LENGTH",
+    "models.qwen3.dtype": "QWEN3_DTYPE",
+    "models.qwen3.response_limit_bytes": "QWEN3_RESPONSE_LIMIT_BYTES",
     # ingest
-    "ingest.chunk_size":                "QDRANT_INGEST_CHUNK_SIZE",
-    "ingest.chunk_overlap":             "QDRANT_INGEST_CHUNK_OVERLAP",
-    "ingest.embedding_batch_size":      "QDRANT_EMBEDDING_BATCH_SIZE",
-    "ingest.write_max_concurrency":     "QDRANT_WRITE_MAX_CONCURRENCY",
-    "ingest.write_queue_size":          "QDRANT_WRITE_QUEUE_SIZE",
+    "ingest.chunk_size": "QDRANT_INGEST_CHUNK_SIZE",
+    "ingest.chunk_overlap": "QDRANT_INGEST_CHUNK_OVERLAP",
+    "ingest.embedding_batch_size": "QDRANT_EMBEDDING_BATCH_SIZE",
+    "ingest.write_max_concurrency": "QDRANT_WRITE_MAX_CONCURRENCY",
+    "ingest.write_queue_size": "QDRANT_WRITE_QUEUE_SIZE",
     # search
-    "search.default_mode":              "QDRANT_DEFAULT_SEARCH_MODE",
-    "search.rerank_prefetch_limit":     "QDRANT_RERANK_PREFETCH_LIMIT",
-    "search.rerank_top_k":              "QDRANT_RERANK_TOP_K",
+    "search.default_mode": "QDRANT_DEFAULT_SEARCH_MODE",
+    "search.rerank_prefetch_limit": "QDRANT_RERANK_PREFETCH_LIMIT",
+    "search.rerank_top_k": "QDRANT_RERANK_TOP_K",
     # collections
-    "collections.default_collection":   "COLLECTION_NAME",
+    "collections.default_collection": "COLLECTION_NAME",
 }
 
 
@@ -103,7 +104,7 @@ def _get_nested(data: dict, path: str) -> Any:
     for key in keys:
         if not isinstance(data, dict):
             return None
-        data = data.get(key)
+        data = data.get(key)  # type: ignore[assignment]
         if data is None:
             return None
     return data
@@ -138,6 +139,7 @@ def _inject_config(config: dict) -> int:
 
 
 # ── Public API ─────────────────────────────────────────────────────────────
+
 
 def load_qdrant_config() -> bool:
     """Load configuration from the first-found YAML file.

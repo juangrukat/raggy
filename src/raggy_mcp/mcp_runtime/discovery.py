@@ -18,37 +18,51 @@ from raggy_mcp.ingest.macos_metadata import MACOS_INDEX_FIELDS
 # Shape: { field_path: {type, operators, indexed, role, description} }
 _INDEXED_FIELD_DOCS: dict[str, dict[str, Any]] = {
     "metadata.document_id": {
-        "type": "keyword", "indexed": True, "role": "identity",
+        "type": "keyword",
+        "indexed": True,
+        "role": "identity",
         "operators": ["==", "!=", "any", "except"],
         "description": "Stable sha1-based identifier per source file. Same file → same id across ingests.",
     },
     "metadata.path": {
-        "type": "keyword", "indexed": True, "role": "identity",
+        "type": "keyword",
+        "indexed": True,
+        "role": "identity",
         "operators": ["==", "!=", "any", "except"],
         "description": "Absolute filesystem path of the source file at ingest time.",
     },
     "metadata.parent_path": {
-        "type": "keyword", "indexed": True, "role": "identity",
+        "type": "keyword",
+        "indexed": True,
+        "role": "identity",
         "operators": ["==", "!=", "any", "except"],
         "description": "Parent directory path. Useful for filtering by folder.",
     },
     "metadata.filename": {
-        "type": "keyword", "indexed": True, "role": "identity",
+        "type": "keyword",
+        "indexed": True,
+        "role": "identity",
         "operators": ["==", "!=", "any", "except"],
         "description": "Filename including extension.",
     },
     "metadata.extension": {
-        "type": "keyword", "indexed": True, "role": "identity",
+        "type": "keyword",
+        "indexed": True,
+        "role": "identity",
         "operators": ["==", "!=", "any", "except"],
         "description": "Lowercase extension without leading dot.",
     },
     "metadata.content_type": {
-        "type": "keyword", "indexed": True, "role": "identity",
+        "type": "keyword",
+        "indexed": True,
+        "role": "identity",
         "operators": ["==", "!=", "any", "except"],
         "description": "macOS Spotlight UTI (e.g. com.adobe.pdf).",
     },
     "metadata.tags": {
-        "type": "keyword[]", "indexed": True, "role": "filter",
+        "type": "keyword[]",
+        "indexed": True,
+        "role": "filter",
         "operators": ["any", "except", "=="],
         "description": (
             "Finder tags. Note that Qdrant's `except` semantics on arrays "
@@ -57,62 +71,86 @@ _INDEXED_FIELD_DOCS: dict[str, dict[str, Any]] = {
         ),
     },
     "metadata.authors": {
-        "type": "keyword[]", "indexed": True, "role": "filter",
+        "type": "keyword[]",
+        "indexed": True,
+        "role": "filter",
         "operators": ["any", "except", "=="],
         "description": "Document authors from Spotlight kMDItemAuthors.",
     },
     "metadata.keywords": {
-        "type": "keyword[]", "indexed": True, "role": "filter",
+        "type": "keyword[]",
+        "indexed": True,
+        "role": "filter",
         "operators": ["any", "except", "=="],
         "description": "Document keywords from Spotlight kMDItemKeywords.",
     },
     "metadata.size_bytes": {
-        "type": "integer", "indexed": True, "role": "filter",
+        "type": "integer",
+        "indexed": True,
+        "role": "filter",
         "operators": [">", ">=", "<", "<=", "=="],
         "description": "File size in bytes.",
     },
     "metadata.is_hidden": {
-        "type": "bool", "indexed": True, "role": "filter",
+        "type": "bool",
+        "indexed": True,
+        "role": "filter",
         "operators": ["=="],
         "description": "True for dotfiles or hidden files.",
     },
     "metadata.has_text": {
-        "type": "bool", "indexed": True, "role": "filter",
+        "type": "bool",
+        "indexed": True,
+        "role": "filter",
         "operators": ["=="],
         "description": "False if extraction returned no text.",
     },
     "metadata.created_at": {
-        "type": "iso_datetime_string", "indexed": True, "role": "filter",
+        "type": "iso_datetime_string",
+        "indexed": True,
+        "role": "filter",
         "operators": [">", ">=", "<", "<=", "=="],
         "description": "ISO-8601 created timestamp from filesystem.",
     },
     "metadata.modified_at": {
-        "type": "iso_datetime_string", "indexed": True, "role": "filter",
+        "type": "iso_datetime_string",
+        "indexed": True,
+        "role": "filter",
         "operators": [">", ">=", "<", "<=", "=="],
         "description": "ISO-8601 modified timestamp from filesystem.",
     },
     "metadata.last_opened_at": {
-        "type": "iso_datetime_string", "indexed": True, "role": "filter",
+        "type": "iso_datetime_string",
+        "indexed": True,
+        "role": "filter",
         "operators": [">", ">=", "<", "<=", "=="],
         "description": "ISO-8601 last-opened timestamp from Spotlight.",
     },
     "metadata.page_count": {
-        "type": "integer", "indexed": True, "role": "filter",
+        "type": "integer",
+        "indexed": True,
+        "role": "filter",
         "operators": [">", ">=", "<", "<=", "=="],
         "description": "Page count for paged formats (PDF, DOCX).",
     },
     "metadata.extractor_used": {
-        "type": "keyword", "indexed": True, "role": "stat",
+        "type": "keyword",
+        "indexed": True,
+        "role": "stat",
         "operators": ["==", "!=", "any"],
         "description": "Which extractor produced the text (pdfminer, pypdf, python-docx, plain-utf-8).",
     },
     "metadata.char_count": {
-        "type": "integer", "indexed": True, "role": "stat",
+        "type": "integer",
+        "indexed": True,
+        "role": "stat",
         "operators": [">", ">=", "<", "<=", "=="],
         "description": "Length of extracted text in characters.",
     },
     "metadata.ingested_at": {
-        "type": "iso_datetime_string", "indexed": True, "role": "stat",
+        "type": "iso_datetime_string",
+        "indexed": True,
+        "role": "stat",
         "operators": [">", ">=", "<", "<=", "=="],
         "description": "ISO-8601 ingestion timestamp.",
     },
@@ -124,14 +162,16 @@ def indexed_fields_payload() -> dict[str, Any]:
     fields = []
     indexed_paths = {p for p, _ in MACOS_INDEX_FIELDS}
     for path, info in _INDEXED_FIELD_DOCS.items():
-        fields.append({
-            "field": path,
-            "type": info["type"],
-            "operators": info["operators"],
-            "indexed": path in indexed_paths,
-            "role": info["role"],
-            "description": info["description"],
-        })
+        fields.append(
+            {
+                "field": path,
+                "type": info["type"],
+                "operators": info["operators"],
+                "indexed": path in indexed_paths,
+                "role": info["role"],
+                "description": info["description"],
+            }
+        )
     return {
         "filter_grammar": {
             "structure": {"must": [], "should": [], "must_not": []},

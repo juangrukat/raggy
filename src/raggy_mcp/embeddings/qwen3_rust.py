@@ -1,19 +1,20 @@
 import asyncio
-from datetime import datetime, timezone
 import json
 import os
-from pathlib import Path
 import time
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from raggy_mcp.embeddings.base import EmbeddingProvider
-
 
 KNOWN_QWEN3_DIMS: dict[str, int] = {
     "Qwen/Qwen3-Embedding-0.6B": 1024,
     "Qwen/Qwen3-Embedding-4B": 2560,
     "Qwen/Qwen3-Embedding-8B": 4096,
 }
+
+IDLE_TIMEOUT = 120  # seconds — keep sidecar alive between queries
 
 
 class Qwen3RustProvider(EmbeddingProvider):
@@ -34,16 +35,30 @@ class Qwen3RustProvider(EmbeddingProvider):
         self.device = device
         self.max_length = max_length
         self.dtype = dtype
-        self.binary_path = Path(binary_path) if binary_path else self._default_binary_path()
-        self.metrics_path = Path(metrics_path) if metrics_path else self._default_metrics_path()
+        self.binary_path = (
+            Path(binary_path) if binary_path else self._default_binary_path()
+        )
+        self.metrics_path = (
+            Path(metrics_path) if metrics_path else self._default_metrics_path()
+        )
         self.response_limit_bytes = response_limit_bytes
         self._process: asyncio.subprocess.Process | None = None
         self._lock = asyncio.Lock()
         self._ready: dict[str, Any] | None = None
+        self._idle_task: asyncio.Task | None = None
+        self._warmed_up = False
 
     async def warm_up(self) -> None:
-        """Pre-start the sidecar subprocess so the first real request has no cold start."""
+        """Pre-start the sidecar subprocess AND force Metal to pre-allocate
+        activation buffers so the first real query has no surprise spike."""
         await self._ensure_process()
+        if not self._warmed_up:
+            # Force Metal to allocate activation workspace NOW, not on first real query
+            try:
+                _ = await self.embed_query("warmup")
+            except Exception:
+                pass
+            self._warmed_up = True
 
     async def embed_documents(self, documents: list[str]) -> list[list[float]]:
         passages = [self._document_input(document) for document in documents]
@@ -130,8 +145,12 @@ class Qwen3RustProvider(EmbeddingProvider):
                     total_ms=self._elapsed_ms(total_started_at),
                     success=success,
                     error=error,
-                    embedding_count=len(response.get("embeddings", [])) if response else 0,
+                    embedding_count=len(response.get("embeddings", []))
+                    if response
+                    else 0,
                 )
+                # Keep sidecar alive — reset idle timer after every request
+                self._reset_idle_timer()
 
     async def _ensure_process(self) -> tuple[asyncio.subprocess.Process, bool]:
         if self._process and self._process.returncode is None:
@@ -146,6 +165,8 @@ class Qwen3RustProvider(EmbeddingProvider):
         env.setdefault("QWEN3_EMBEDDING_MODEL", self.model_name)
         env.setdefault("QWEN3_DEVICE", self.device)
         env.setdefault("QWEN3_MAX_LENGTH", str(self.max_length))
+        # The Rust sidecar defaults to F16 on Metal, which is already half-precision.
+        # Explicit dtype overrides (f32/f16/bf16) are handled via env var.
         if self.dtype != "auto":
             env.setdefault("QWEN3_DTYPE", self.dtype)
 
@@ -163,12 +184,27 @@ class Qwen3RustProvider(EmbeddingProvider):
             stderr = b""
             if self._process.stderr is not None:
                 stderr = await self._process.stderr.read()
-            raise RuntimeError(f"Qwen3 sidecar failed to start: {stderr.decode('utf-8', 'replace')}")
+            raise RuntimeError(
+                f"Qwen3 sidecar failed to start: {stderr.decode('utf-8', 'replace')}"
+            )
         ready = json.loads(line)
         if ready.get("type") == "error":
             raise RuntimeError(ready.get("message", "Qwen3 sidecar failed to start"))
         self._ready = ready
         return self._process, True
+
+    def _reset_idle_timer(self) -> None:
+        if self._idle_task:
+            self._idle_task.cancel()
+        self._idle_task = asyncio.get_event_loop().create_task(self._idle_shutdown())
+
+    async def _idle_shutdown(self) -> None:
+        await asyncio.sleep(IDLE_TIMEOUT)
+        if self._process and self._process.returncode is None:
+            self._process.terminate()
+            await asyncio.wait_for(self._process.wait(), timeout=5)
+        self._process = None
+        self._idle_task = None
 
     def _record_metrics(
         self,
@@ -218,8 +254,22 @@ class Qwen3RustProvider(EmbeddingProvider):
     @staticmethod
     def _default_binary_path() -> Path:
         repo_root = Path(__file__).resolve().parents[3]
-        release = repo_root / "rust" / "qwen3_embedder" / "target" / "release" / "qwen3-embedder"
-        debug = repo_root / "rust" / "qwen3_embedder" / "target" / "debug" / "qwen3-embedder"
+        release = (
+            repo_root
+            / "rust"
+            / "qwen3_embedder"
+            / "target"
+            / "release"
+            / "qwen3-embedder"
+        )
+        debug = (
+            repo_root
+            / "rust"
+            / "qwen3_embedder"
+            / "target"
+            / "debug"
+            / "qwen3-embedder"
+        )
         return release if release.exists() else debug
 
     @staticmethod

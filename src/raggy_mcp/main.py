@@ -92,6 +92,7 @@ def main() -> None:
 
             # Build the app with middleware then run via uvicorn
             import uvicorn
+
             app = mcp.http_app(middleware=middleware, transport="streamable-http")
             uvicorn.run(app, host=args.host, port=args.port, log_level="info")
     except KeyboardInterrupt:

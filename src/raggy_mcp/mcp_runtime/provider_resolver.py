@@ -66,7 +66,9 @@ class ProviderResolver:
         """Record that a collection should use this embedding model by default."""
         self._collection_models[collection_name] = model_name
 
-    async def assign_collection_model_persisted(self, collection_name: str, model_name: str) -> None:
+    async def assign_collection_model_persisted(
+        self, collection_name: str, model_name: str
+    ) -> None:
         """Record and persist a collection→model assignment."""
         self._collection_models[collection_name] = model_name
         await self._save_collection_models()
@@ -89,7 +91,9 @@ class ProviderResolver:
                     loaded[collection] = model
             self._collection_models.update(loaded)
         except Exception as e:
-            logger.warning(f"Could not load collection model assignments from {self._collection_models_path}: {e}")
+            logger.warning(
+                f"Could not load collection model assignments from {self._collection_models_path}: {e}"
+            )
 
     async def _save_collection_models(self) -> None:
         async with self._collection_models_file_lock:
@@ -100,7 +104,9 @@ class ProviderResolver:
                 for collection, model_name in sorted(self._collection_models.items())
             }
             tmp_path = self._collection_models_path.with_suffix(".json.tmp")
-            tmp_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            tmp_path.write_text(
+                json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
             tmp_path.replace(self._collection_models_path)
 
     async def resolve(

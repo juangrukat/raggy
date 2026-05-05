@@ -1,16 +1,97 @@
-from typing import Any
+"""Filter builder — converts filterable field definitions into Qdrant Filter objects."""
+
+from typing import Any, Callable
 
 from qdrant_client import models
 
 from raggy_mcp.qdrant import ArbitraryFilter
 from raggy_mcp.settings import METADATA_PATH, FilterableField
 
+# ── Condition builders ────────────────────────────────────────────────────
+# Each builder takes (field_name, value) and returns a condition to append
+# to either must or must_not. Return value: (models.FieldCondition, False) for
+# must, or (models.FieldCondition, True) for must_not.
+
+
+def _match_value(key: str, value: Any) -> list[models.FieldCondition]:
+    return [models.FieldCondition(key=key, match=models.MatchValue(value=value))]
+
+
+def _match_any(key: str, value: Any) -> list[models.FieldCondition]:
+    return [models.FieldCondition(key=key, match=models.MatchAny(any=value))]
+
+
+def _match_except(key: str, value: Any) -> list[models.FieldCondition]:
+    return [
+        models.FieldCondition(key=key, match=models.MatchExcept(**{"except": value}))
+    ]
+
+
+def _range_gt(key: str, value: Any) -> list[models.FieldCondition]:
+    return [models.FieldCondition(key=key, range=models.Range(gt=value))]
+
+
+def _range_gte(key: str, value: Any) -> list[models.FieldCondition]:
+    return [models.FieldCondition(key=key, range=models.Range(gte=value))]
+
+
+def _range_lt(key: str, value: Any) -> list[models.FieldCondition]:
+    return [models.FieldCondition(key=key, range=models.Range(lt=value))]
+
+
+def _range_lte(key: str, value: Any) -> list[models.FieldCondition]:
+    return [models.FieldCondition(key=key, range=models.Range(lte=value))]
+
+
+def _must_not(key: str, value: Any) -> list[models.FieldCondition]:
+    return [models.FieldCondition(key=key, match=models.MatchValue(value=value))]
+
+
+# ── Dispatch table: (field_type, condition) → builder ────────────────────
+
+_MUST_CONDITIONS: dict[
+    tuple[str, str], Callable[[str, Any], list[models.FieldCondition]]
+] = {
+    ("keyword", "=="): _match_value,
+    ("keyword", "any"): _match_any,
+    ("keyword", "except"): _match_except,
+    ("integer", "=="): _match_value,
+    ("integer", ">"): _range_gt,
+    ("integer", ">="): _range_gte,
+    ("integer", "<"): _range_lt,
+    ("integer", "<="): _range_lte,
+    ("integer", "any"): _match_any,
+    ("integer", "except"): _match_except,
+    ("float", ">"): _range_gt,
+    ("float", ">="): _range_gte,
+    ("float", "<"): _range_lt,
+    ("float", "<="): _range_lte,
+    ("boolean", "=="): _match_value,
+}
+
+_MUST_NOT_CONDITIONS: dict[
+    tuple[str, str], Callable[[str, Any], list[models.FieldCondition]]
+] = {
+    ("keyword", "!="): _must_not,
+    ("integer", "!="): _must_not,
+    ("boolean", "!="): _must_not,
+}
+
+
+def _validate_field(
+    field_name: str, field: FilterableField, values: dict[str, Any]
+) -> None:
+    """Validate a field exists and has a non-None value if required."""
+    if field_value := values.get(field_name):
+        if field_value is None and field.required:
+            raise ValueError(f"Field {field_name} is required")
+
 
 def make_filter(
     filterable_fields: dict[str, FilterableField], values: dict[str, Any]
 ) -> ArbitraryFilter:
-    must_conditions = []
-    must_not_conditions = []
+    must_conditions: list[models.FieldCondition] = []
+    must_not_conditions: list[models.FieldCondition] = []
 
     for raw_field_name, field_value in values.items():
         if raw_field_name not in filterable_fields:
@@ -21,174 +102,51 @@ def make_filter(
         if field_value is None:
             if field.required:
                 raise ValueError(f"Field {raw_field_name} is required")
+            continue
+
+        field_key = f"{METADATA_PATH}.{raw_field_name}"
+        ft = field.field_type
+        cond = field.condition
+
+        # Try must_not first (negations), then must
+        if cond is not None:
+            if (ft, cond) in _MUST_NOT_CONDITIONS:
+                must_not_conditions.extend(
+                    _MUST_NOT_CONDITIONS[(ft, cond)](field_key, field_value)  # type: ignore[index]
+                )
+            elif (ft, cond) in _MUST_CONDITIONS:
+                must_conditions.extend(
+                    _MUST_CONDITIONS[(ft, cond)](field_key, field_value)  # type: ignore[index]
+                )
             else:
-                continue
-
-        field_name = f"{METADATA_PATH}.{raw_field_name}"
-
-        if field.field_type == "keyword":
-            if field.condition == "==":
-                must_conditions.append(
-                    models.FieldCondition(
-                        key=field_name, match=models.MatchValue(value=field_value)
-                    )
-                )
-            elif field.condition == "!=":
-                must_not_conditions.append(
-                    models.FieldCondition(
-                        key=field_name, match=models.MatchValue(value=field_value)
-                    )
-                )
-            elif field.condition == "any":
-                must_conditions.append(
-                    models.FieldCondition(
-                        key=field_name, match=models.MatchAny(any=field_value)
-                    )
-                )
-            elif field.condition == "except":
-                must_conditions.append(
-                    models.FieldCondition(
-                        key=field_name,
-                        match=models.MatchExcept(**{"except": field_value}),
-                    )
-                )
-            elif field.condition is not None:
                 raise ValueError(
-                    f"Invalid condition {field.condition} for keyword field {field_name}"
+                    f"Invalid condition {cond!r} for {ft} field {field_key}"
                 )
-
-        elif field.field_type == "integer":
-            if field.condition == "==":
-                must_conditions.append(
-                    models.FieldCondition(
-                        key=field_name, match=models.MatchValue(value=field_value)
-                    )
-                )
-            elif field.condition == "!=":
-                must_not_conditions.append(
-                    models.FieldCondition(
-                        key=field_name, match=models.MatchValue(value=field_value)
-                    )
-                )
-            elif field.condition == ">":
-                must_conditions.append(
-                    models.FieldCondition(
-                        key=field_name, range=models.Range(gt=field_value)
-                    )
-                )
-            elif field.condition == ">=":
-                must_conditions.append(
-                    models.FieldCondition(
-                        key=field_name, range=models.Range(gte=field_value)
-                    )
-                )
-            elif field.condition == "<":
-                must_conditions.append(
-                    models.FieldCondition(
-                        key=field_name, range=models.Range(lt=field_value)
-                    )
-                )
-            elif field.condition == "<=":
-                must_conditions.append(
-                    models.FieldCondition(
-                        key=field_name, range=models.Range(lte=field_value)
-                    )
-                )
-            elif field.condition == "any":
-                must_conditions.append(
-                    models.FieldCondition(
-                        key=field_name, match=models.MatchAny(any=field_value)
-                    )
-                )
-            elif field.condition == "except":
-                must_conditions.append(
-                    models.FieldCondition(
-                        key=field_name,
-                        match=models.MatchExcept(**{"except": field_value}),
-                    )
-                )
-            elif field.condition is not None:
-                raise ValueError(
-                    f"Invalid condition {field.condition} for integer field {field_name}"
-                )
-
-        elif field.field_type == "float":
-            # For float values, we only support range comparisons
-            if field.condition == ">":
-                must_conditions.append(
-                    models.FieldCondition(
-                        key=field_name, range=models.Range(gt=field_value)
-                    )
-                )
-            elif field.condition == ">=":
-                must_conditions.append(
-                    models.FieldCondition(
-                        key=field_name, range=models.Range(gte=field_value)
-                    )
-                )
-            elif field.condition == "<":
-                must_conditions.append(
-                    models.FieldCondition(
-                        key=field_name, range=models.Range(lt=field_value)
-                    )
-                )
-            elif field.condition == "<=":
-                must_conditions.append(
-                    models.FieldCondition(
-                        key=field_name, range=models.Range(lte=field_value)
-                    )
-                )
-            elif field.condition is not None:
-                raise ValueError(
-                    f"Invalid condition {field.condition} for float field {field_name}. "
-                    "Only range comparisons (>, >=, <, <=) are supported for float values."
-                )
-
-        elif field.field_type == "boolean":
-            if field.condition == "==":
-                must_conditions.append(
-                    models.FieldCondition(
-                        key=field_name, match=models.MatchValue(value=field_value)
-                    )
-                )
-            elif field.condition == "!=":
-                must_not_conditions.append(
-                    models.FieldCondition(
-                        key=field_name, match=models.MatchValue(value=field_value)
-                    )
-                )
-            elif field.condition is not None:
-                raise ValueError(
-                    f"Invalid condition {field.condition} for boolean field {field_name}"
-                )
-
-        else:
-            raise ValueError(
-                f"Unsupported field type {field.field_type} for field {field_name}"
-            )
 
     return models.Filter(
-        must=must_conditions, must_not=must_not_conditions
+        must=must_conditions,  # type: ignore[arg-type]
+        must_not=must_not_conditions,  # type: ignore[arg-type]
     ).model_dump()
+
+
+# ── Index builder (unchanged, but extracted to keep filters.py focused) ────
 
 
 def make_indexes(
     filterable_fields: dict[str, FilterableField],
 ) -> dict[str, models.PayloadSchemaType]:
-    indexes = {}
-
+    indexes: dict[str, models.PayloadSchemaType] = {}
+    type_map = {
+        "keyword": models.PayloadSchemaType.KEYWORD,
+        "integer": models.PayloadSchemaType.INTEGER,
+        "float": models.PayloadSchemaType.FLOAT,
+        "boolean": models.PayloadSchemaType.BOOL,
+    }
     for field_name, field in filterable_fields.items():
-        if field.field_type == "keyword":
-            indexes[f"{METADATA_PATH}.{field_name}"] = models.PayloadSchemaType.KEYWORD
-        elif field.field_type == "integer":
-            indexes[f"{METADATA_PATH}.{field_name}"] = models.PayloadSchemaType.INTEGER
-        elif field.field_type == "float":
-            indexes[f"{METADATA_PATH}.{field_name}"] = models.PayloadSchemaType.FLOAT
-        elif field.field_type == "boolean":
-            indexes[f"{METADATA_PATH}.{field_name}"] = models.PayloadSchemaType.BOOL
-        else:
+        schema_type = type_map.get(field.field_type)
+        if schema_type is None:
             raise ValueError(
                 f"Unsupported field type {field.field_type} for field {field_name}"
             )
-
+        indexes[f"{METADATA_PATH}.{field_name}"] = schema_type
     return indexes

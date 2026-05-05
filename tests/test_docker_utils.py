@@ -7,7 +7,9 @@ def test_stop_qdrant_container_skips_external_server_mode(monkeypatch):
     monkeypatch.setenv("QDRANT_MODE", "server")
     monkeypatch.setenv("QDRANT_AUTO_DOCKER", "false")
     monkeypatch.setattr(docker_utils, "is_qdrant_container_running", lambda: True)
-    monkeypatch.setattr(docker_utils.subprocess, "run", lambda *args, **kwargs: calls.append(args))
+    monkeypatch.setattr(
+        docker_utils.subprocess, "run", lambda *args, **kwargs: calls.append(args)
+    )
 
     docker_utils.stop_qdrant_container()
 

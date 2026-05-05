@@ -25,6 +25,5 @@ class RetrievalMode(str, Enum):
             return cls(value)
         except ValueError as e:
             raise ValueError(
-                f"Unknown retrieval mode '{value}'. "
-                f"Valid: {[m.value for m in cls]}"
+                f"Unknown retrieval mode '{value}'. Valid: {[m.value for m in cls]}"
             ) from e

@@ -19,17 +19,56 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 PLAIN_TEXT_EXTENSIONS = {
-    ".txt", ".md", ".markdown", ".rst", ".log", ".text",
-    ".conf", ".cfg", ".ini", ".env",
-    ".yaml", ".yml", ".toml", ".xml", ".html", ".htm",
-    ".css", ".scss", ".less",
-    ".js", ".jsx", ".ts", ".tsx", ".py", ".java", ".c", ".cc", ".cpp",
-    ".h", ".hpp", ".cs", ".go", ".rs", ".rb", ".php", ".swift",
-    ".kt", ".kts", ".sh", ".bash", ".zsh", ".fish", ".sql",
-    ".graphql", ".gql",
+    ".txt",
+    ".md",
+    ".markdown",
+    ".rst",
+    ".log",
+    ".text",
+    ".conf",
+    ".cfg",
+    ".ini",
+    ".env",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".xml",
+    ".html",
+    ".htm",
+    ".css",
+    ".scss",
+    ".less",
+    ".js",
+    ".jsx",
+    ".ts",
+    ".tsx",
+    ".py",
+    ".java",
+    ".c",
+    ".cc",
+    ".cpp",
+    ".h",
+    ".hpp",
+    ".cs",
+    ".go",
+    ".rs",
+    ".rb",
+    ".php",
+    ".swift",
+    ".kt",
+    ".kts",
+    ".sh",
+    ".bash",
+    ".zsh",
+    ".fish",
+    ".sql",
+    ".graphql",
+    ".gql",
 }
 STRUCTURED_TEXT_EXTENSIONS = {".json", ".jsonl", ".csv", ".tsv"}
-SUPPORTED_EXTENSIONS = PLAIN_TEXT_EXTENSIONS | STRUCTURED_TEXT_EXTENSIONS | {".pdf", ".docx"}
+SUPPORTED_EXTENSIONS = (
+    PLAIN_TEXT_EXTENSIONS | STRUCTURED_TEXT_EXTENSIONS | {".pdf", ".docx"}
+)
 
 # Max chars per chunk; overlap in chars. Qwen3/Candle is sensitive to inputs
 # that exceed its tokenizer split limits, so keep local chunks conservative.
@@ -131,7 +170,9 @@ def build_chunks(doc: ExtractedDocument, file_metadata: dict) -> list[Chunk]:
     chunks = []
     for i, text in enumerate(raw_chunks):
         chunk_meta = {**file_metadata, "chunk_index": i, "total_chunks": total}
-        chunks.append(Chunk(text=text, chunk_index=i, total_chunks=total, metadata=chunk_meta))
+        chunks.append(
+            Chunk(text=text, chunk_index=i, total_chunks=total, metadata=chunk_meta)
+        )
     return chunks
 
 
@@ -148,6 +189,7 @@ def _env_int(name: str, default: int) -> int:
 
 # --- Plain text ---
 
+
 def _extract_plain(path: str) -> ExtractedDocument:
     for enc in ("utf-8", "utf-8-sig", "latin-1", "cp1252"):
         try:
@@ -163,8 +205,12 @@ def _extract_plain(path: str) -> ExtractedDocument:
         except UnicodeDecodeError:
             continue
         except Exception as e:
-            return ExtractedDocument(text="", extractor_used="plain", char_count=0, error=str(e))
-    return ExtractedDocument(text="", extractor_used="plain", char_count=0, error="Could not decode file")
+            return ExtractedDocument(
+                text="", extractor_used="plain", char_count=0, error=str(e)
+            )
+    return ExtractedDocument(
+        text="", extractor_used="plain", char_count=0, error="Could not decode file"
+    )
 
 
 def _strip_frontmatter(text: str) -> str:
@@ -173,11 +219,12 @@ def _strip_frontmatter(text: str) -> str:
         if text.startswith(fence):
             end = text.find(fence, len(fence))
             if end != -1:
-                return text[end + len(fence):].lstrip("\n")
+                return text[end + len(fence) :].lstrip("\n")
     return text
 
 
 # --- Structured text ---
+
 
 def _extract_json(path: str) -> ExtractedDocument:
     try:
@@ -192,13 +239,17 @@ def _extract_json(path: str) -> ExtractedDocument:
     except UnicodeDecodeError:
         return _extract_plain(path)
     except Exception as e:
-        return ExtractedDocument(text="", extractor_used="json", char_count=0, error=str(e))
+        return ExtractedDocument(
+            text="", extractor_used="json", char_count=0, error=str(e)
+        )
 
 
 def _extract_jsonl(path: str) -> ExtractedDocument:
     try:
         rendered = []
-        for line_no, line in enumerate(Path(path).read_text(encoding="utf-8").splitlines(), start=1):
+        for line_no, line in enumerate(
+            Path(path).read_text(encoding="utf-8").splitlines(), start=1
+        ):
             if not line.strip():
                 continue
             data = json.loads(line)
@@ -212,7 +263,9 @@ def _extract_jsonl(path: str) -> ExtractedDocument:
     except UnicodeDecodeError:
         return _extract_plain(path)
     except Exception as e:
-        return ExtractedDocument(text="", extractor_used="jsonl", char_count=0, error=str(e))
+        return ExtractedDocument(
+            text="", extractor_used="jsonl", char_count=0, error=str(e)
+        )
 
 
 def _extract_delimited(path: str, *, delimiter: str) -> ExtractedDocument:
@@ -230,7 +283,11 @@ def _extract_delimited(path: str, *, delimiter: str) -> ExtractedDocument:
         for row_index, row in enumerate(rows[1:] if has_header else rows, start=1):
             cells = []
             for col_index, value in enumerate(row):
-                label = header[col_index] if has_header and col_index < len(header) and header[col_index] else f"column_{col_index + 1}"
+                label = (
+                    header[col_index]
+                    if has_header and col_index < len(header) and header[col_index]
+                    else f"column_{col_index + 1}"
+                )
                 if value.strip():
                     cells.append(f"{label}: {value.strip()}")
             if cells:
@@ -245,7 +302,9 @@ def _extract_delimited(path: str, *, delimiter: str) -> ExtractedDocument:
     except UnicodeDecodeError:
         return _extract_plain(path)
     except Exception as e:
-        return ExtractedDocument(text="", extractor_used=extractor, char_count=0, error=str(e))
+        return ExtractedDocument(
+            text="", extractor_used=extractor, char_count=0, error=str(e)
+        )
 
 
 def _json_to_searchable_text(value: Any, *, prefix: str = "") -> str:
@@ -265,6 +324,7 @@ def _json_to_searchable_text(value: Any, *, prefix: str = "") -> str:
 
 
 # --- PDF ---
+
 
 def _extract_pdf(path: str) -> ExtractedDocument:
     profile = profile_pdf(path)
@@ -292,11 +352,20 @@ def _extract_pdf(path: str) -> ExtractedDocument:
     if not text:
         text, pages, extractor = _pdf_pypdf(path)
     if not text:
-        return ExtractedDocument(text="", extractor_used="pdf-failed", char_count=0, error="All PDF extractors returned empty text")
-    return ExtractedDocument(text=text, extractor_used=extractor, char_count=len(text), page_count=pages)
+        return ExtractedDocument(
+            text="",
+            extractor_used="pdf-failed",
+            char_count=0,
+            error="All PDF extractors returned empty text",
+        )
+    return ExtractedDocument(
+        text=text, extractor_used=extractor, char_count=len(text), page_count=pages
+    )
 
 
-def profile_pdf(path: str, *, sample_pages: int = 5, text_threshold: int = 16) -> PdfProfile:
+def profile_pdf(
+    path: str, *, sample_pages: int = 5, text_threshold: int = 16
+) -> PdfProfile:
     """
     Cheaply classify whether a PDF likely has a text layer before full extraction.
     This is not OCR; it only samples existing PDF structure and extractable text.
@@ -309,7 +378,9 @@ def profile_pdf(path: str, *, sample_pages: int = 5, text_threshold: int = 16) -
             try:
                 decrypt_result = reader.decrypt("")
             except Exception:
-                decrypt_result = 0
+                from pypdf._encryption import PasswordType
+
+                decrypt_result = PasswordType.NOT_DECRYPTED  # type: ignore[assignment]
             if not decrypt_result:
                 return PdfProfile(
                     has_text=False,
@@ -397,14 +468,17 @@ def _pdfminer_page_text(path: str, page_number: int) -> str:
 
         return pm_extract(path, page_numbers=[page_number]) or ""
     except Exception as e:
-        logger.debug(f"pdfminer page preflight failed for {path} page {page_number}: {e}")
+        logger.debug(
+            f"pdfminer page preflight failed for {path} page {page_number}: {e}"
+        )
         return ""
 
 
 def _pdf_pdfminer(path: str) -> tuple[str, int | None, str]:
     try:
-        from pdfminer.high_level import extract_text as pm_extract
         from pdfminer.high_level import extract_pages
+        from pdfminer.high_level import extract_text as pm_extract
+
         text = pm_extract(path)
         pages = sum(1 for _ in extract_pages(path))
         return (text or "").strip(), pages, "pdfminer"
@@ -416,11 +490,10 @@ def _pdf_pdfminer(path: str) -> tuple[str, int | None, str]:
 def _pdf_pypdf(path: str) -> tuple[str, int | None, str]:
     try:
         from pypdf import PdfReader
+
         reader = PdfReader(path)
         pages = len(reader.pages)
-        text = "\n\n".join(
-            page.extract_text() or "" for page in reader.pages
-        ).strip()
+        text = "\n\n".join(page.extract_text() or "" for page in reader.pages).strip()
         return text, pages, "pypdf"
     except Exception as e:
         logger.debug(f"pypdf failed for {path}: {e}")
@@ -428,6 +501,7 @@ def _pdf_pypdf(path: str) -> tuple[str, int | None, str]:
 
 
 # --- DOCX ---
+
 
 def _extract_docx(path: str) -> ExtractedDocument:
     try:
@@ -445,14 +519,18 @@ def _extract_docx(path: str) -> ExtractedDocument:
             char_count=len(text),
         )
     except Exception as e:
-        return ExtractedDocument(text="", extractor_used="python-docx", char_count=0, error=str(e))
+        return ExtractedDocument(
+            text="", extractor_used="python-docx", char_count=0, error=str(e)
+        )
 
 
-def _render_docx_container(container: Any, paragraph_type: type, table_type: type) -> str:
+def _render_docx_container(
+    container: Any, paragraph_type: type, table_type: type
+) -> str:
     parts = []
     for block in container.iter_inner_content():
         if isinstance(block, paragraph_type):
-            text = block.text.strip()
+            text = block.text.strip()  # type: ignore[attr-defined,union-attr]
             if text:
                 parts.append(text)
         elif isinstance(block, table_type):
@@ -467,7 +545,11 @@ def _render_docx_table(table: Any, paragraph_type: type, table_type: type) -> st
     for row_index, row in enumerate(table.rows, start=1):
         cells = []
         for col_index, cell in enumerate(row.cells, start=1):
-            cell_text = _render_docx_container(cell, paragraph_type, table_type).replace("\n", " ").strip()
+            cell_text = (
+                _render_docx_container(cell, paragraph_type, table_type)
+                .replace("\n", " ")
+                .strip()
+            )
             if cell_text:
                 cells.append(f"column_{col_index}: {cell_text}")
         if cells:
@@ -475,7 +557,9 @@ def _render_docx_table(table: Any, paragraph_type: type, table_type: type) -> st
     return "\n".join(lines)
 
 
-def _render_docx_headers_footers(doc: Any, paragraph_type: type, table_type: type) -> str:
+def _render_docx_headers_footers(
+    doc: Any, paragraph_type: type, table_type: type
+) -> str:
     parts = []
     seen: set[int] = set()
     for section_index, section in enumerate(doc.sections, start=1):

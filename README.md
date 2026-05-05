@@ -17,6 +17,54 @@ late-interaction collection creation, embedding model assignment, and discovery
 tools are enabled. Raw chunk-level and destructive tools are available only when
 the server is started with the `full` tool profile.
 
+## Memory and Model Selection
+
+Raggy supports multiple embedding models, ranging from lightweight (700 MB)
+to large (14+ GB on disk, 8-16 GB when loaded into unified memory). The
+default model is `Qwen/Qwen3-Embedding-4B` which requires approximately
+**8-16 GB of unified memory** when loaded via the Candle/Metal sidecar.
+
+**Warning:** On machines with 16 GB or less of RAM, loading the default
+4B-parameter model alongside other applications (browser, IDE, Qdrant) can
+exhaust available memory and cause the system to swap or become unresponsive.
+
+### Model tiers by memory footprint
+
+| Model | Parameters | VRAM/RAM (F16) | Disk cache | Use case |
+|---|---|---|---|---|
+| `sentence-transformers/all-MiniLM-L6-v2` | 22M | ~400 MB | ~90 MB | Testing / low-resource |
+| `Qwen/Qwen3-Embedding-0.6B` | 0.6B | ~1.2 GB | ~1.1 GB | Lightweight production |
+| `Qwen/Qwen3-Embedding-4B` | 4B | ~8 GB | ~7.5 GB | Balanced (default) |
+| `Qwen/Qwen3-Embedding-8B` | 8B | ~16 GB | ~14 GB | High-quality, memory-heavy |
+
+Set the model in `raggy.yaml` under `models.dense_embedding` or via the
+`EMBEDDING_MODEL` environment variable.
+
+### Memory optimizations applied
+
+Raggy uses a Rust sidecar binary (`qwen3-embedder`) for Qwen3 embedding models
+via Candle (a ML framework). The sidecar loads models in **F16 precision** on
+Apple Silicon Metal — half the memory of FP32. Three additional mitigations
+are built in by default:
+
+1. **Pre-warm dummy embedding** — The sidecar is loaded and a short dummy
+   embedding is run during server startup (not on the first user query). This
+   forces Metal to pre-allocate activation buffers and inference workspace in
+   a predictable warmup period rather than spiking during real requests.
+
+2. **Idle keepalive (120s)** — After each embedding request, a 120-second
+   countdown is reset. As long as queries arrive within the window, the
+   sidecar process stays alive and Metal's pre-allocated buffers are reused —
+   subsequent queries add nearly zero memory.
+
+3. **F16 default on Metal** — The Rust sidecar defaults to float16 on Apple
+   Silicon, cutting the model weight memory and inference activation workspace
+   roughly in half compared to FP32.
+
+These optimizations prevent the ~8 GB inference-time memory spike that would
+otherwise occur on the first query, and keep the warm sidecar's memory
+footprint stable across a burst of searches.
+
 ## What This Server Does
 
 At a high level, the server turns files or text into searchable Qdrant points,
@@ -30,22 +78,33 @@ flowchart TD
     C -->|"create collection"| D["Create Qdrant vector schema"]
     C -->|"ingest file/folder"| E["Extract text and file metadata"]
     E --> F["Chunk extracted text"]
-    F --> G["Embed chunks"]
-    G --> H["Upsert dense, sparse, or late-interaction vectors"]
+
+    subgraph Embedding [" "]
+        direction LR
+        G1{"Model type?"}
+        G1 -->|"FastEmbed (lightweight)"| G2["ONNX Runtime<br>in-process"]
+        G1 -->|"Qwen3 (default)"| G3["Rust sidecar<br>qwen3-embedder"]
+        G3 --> G4["Candle + Metal<br>F16 precision"]
+    end
+
+    F --> G1
+    G2 --> H["Upsert dense, sparse, or late-interaction vectors"]
+    G4 --> H
     H --> I[("Qdrant collection")]
 
-    C -->|"search_documents"| J["Embed query"]
-    J --> K{"Search mode"}
-    K -->|"dense"| L["Dense vector search"]
-    K -->|"hybrid"| M["Dense + sparse prefetch with fusion"]
-    K -->|"rerank"| N["Hybrid prefetch, then reranker scoring"]
-    K -->|"late_interaction"| O["ColBERT-style multivector search"]
+    C -->|"search_documents"| J{"Search mode"}
+    J -->|"dense"| L["Dense vector search"]
+    J -->|"hybrid"| M["Dense + sparse prefetch with fusion"]
+    J -->|"rerank"| N["Hybrid prefetch, then reranker scoring"]
+    J -->|"late_interaction"| O["ColBERT-style multivector search"]
     L --> P["Group chunks by document_id"]
     M --> P
     N --> P
     O --> P
     P --> Q["Return documents with best matching chunks"]
-```
+
+    style G3 fill:#4a4,color:#fff
+    style G4 fill:#4a4,color:#fff
 
 The ingest path preserves payload metadata such as path, filename, parent path,
 document id, chunk index, total chunks, character count, page count when
@@ -424,7 +483,13 @@ same plan id.
 - WebUI runtime: NiceGUI.
 - REST runtime: FastAPI and Uvicorn.
 - Vector store: Qdrant client, either embedded local storage or server URL.
-- Dense embeddings: FastEmbed-compatible providers, with Qwen3 sidecar support.
+- Dense embeddings: FastEmbed-compatible providers, with Qwen3 sidecar support
+  via a Rust subprocess (`qwen3-embedder`) that loads the model through Candle
+  + Metal with F16 precision.
+- Qwen3 sidecar memory: the sidecar is pre-warmed with a dummy embedding on
+  startup and kept alive for 120 seconds of inactivity between requests. This
+  prevents ~8 GB Metal activation-buffer spikes on real queries and keeps the
+  warm sidecar's memory footprint stable across search bursts.
 - Sparse retrieval: `Qdrant/bm25` by default, with BM42 option.
 - Reranking: FastEmbed cross-encoders by default; Qwen3 rerankers require the
   `reranking` extra.

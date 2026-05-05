@@ -21,7 +21,9 @@ def _source_local_env(extra_env: dict[str, str] | None = None) -> dict[str, str]
 
 
 def test_local_env_defaults_to_embedded_storage():
-    env = _source_local_env({"QDRANT_URL": "", "QDRANT_MODE": "", "QDRANT_LOCAL_PATH": ""})
+    env = _source_local_env(
+        {"QDRANT_URL": "", "QDRANT_MODE": "", "QDRANT_LOCAL_PATH": ""}
+    )
 
     assert env["QDRANT_MODE"] == "embedded"
     assert env["QDRANT_LOCAL_PATH"].endswith(".local/qdrant-storage")

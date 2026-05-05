@@ -20,7 +20,12 @@ def test_priority_tools_have_output_schemas(monkeypatch):
 
     tools = asyncio.run(server.get_tools())
 
-    for name in ("search_documents", "ingest_file", "ingest_folder", "get_supported_extractors"):
+    for name in (
+        "search_documents",
+        "ingest_file",
+        "ingest_folder",
+        "get_supported_extractors",
+    ):
         assert name in tools
         assert tools[name].output_schema
         assert tools[name].output_schema["type"] == "object"

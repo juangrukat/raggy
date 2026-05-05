@@ -23,7 +23,6 @@ from typing import Any
 
 from qdrant_client import models
 
-
 _RANGE_OPS = {">", ">=", "<", "<="}
 _EQ_OPS = {"==", "!="}
 
@@ -43,7 +42,9 @@ def _build_match(field: str, op: str, value: Any) -> models.FieldCondition:
     if op == "except":
         if not isinstance(value, list):
             value = [value]
-        return models.FieldCondition(key=field, match=models.MatchExcept(**{"except": value}))
+        return models.FieldCondition(
+            key=field, match=models.MatchExcept(**{"except": value})
+        )
     if op in _EQ_OPS:
         return models.FieldCondition(key=field, match=models.MatchValue(value=value))
     if op in _RANGE_OPS:
@@ -58,7 +59,9 @@ def _build_match(field: str, op: str, value: Any) -> models.FieldCondition:
             kwargs["lte"] = value
         # Use DatetimeRange for ISO strings, otherwise plain Range
         if isinstance(value, str) and len(value) >= 10 and value[4] == "-":
-            return models.FieldCondition(key=field, range=models.DatetimeRange(**kwargs))
+            return models.FieldCondition(
+                key=field, range=models.DatetimeRange(**kwargs)
+            )
         return models.FieldCondition(key=field, range=models.Range(**kwargs))
     raise ValueError(f"Unsupported op: {op}")
 
@@ -89,7 +92,9 @@ def _compile_filter_cached(spec_json: str) -> models.Filter | None:
     must_not = _build_clause(spec.get("must_not", []))
     if not (must or should or must_not):
         return None
-    return models.Filter(must=must or None, should=should or None, must_not=must_not or None)
+    return models.Filter(
+        must=must or None, should=should or None, must_not=must_not or None
+    )
 
 
 def compile_filter(spec: dict | None) -> models.Filter | None:

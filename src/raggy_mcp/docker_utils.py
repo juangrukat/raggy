@@ -1,12 +1,14 @@
+import logging
+import os
 import subprocess
 import time
-import os
+
 import requests
-import logging
 
 logger = logging.getLogger(__name__)
 
 QDRANT_CONTAINER_NAME = "qdrant_mcp_server"
+
 
 def should_manage_qdrant_container() -> bool:
     """Return true only when this process owns Docker container lifecycle."""
@@ -22,16 +24,19 @@ def is_qdrant_container_running():
             ["docker", "inspect", "-f", "{{.State.Running}}", QDRANT_CONTAINER_NAME],
             capture_output=True,
             text=True,
-            check=True
+            check=True,
         )
         return result.stdout.strip() == "true"
     except subprocess.CalledProcessError:
         return False
 
+
 def start_qdrant_container():
     """Starts the Qdrant Docker container if it's not already running."""
     if not should_manage_qdrant_container():
-        logger.info("Qdrant Docker auto-start skipped; this process does not own Docker lifecycle.")
+        logger.info(
+            "Qdrant Docker auto-start skipped; this process does not own Docker lifecycle."
+        )
         return
 
     if is_qdrant_container_running():
@@ -50,12 +55,18 @@ def start_qdrant_container():
     os.makedirs(storage_path, exist_ok=True)
 
     command = [
-        "docker", "run", "-d",
-        "--name", QDRANT_CONTAINER_NAME,
-        "-p", "6333:6333",
-        "-p", "6334:6334",
-        "-v", f"{storage_path}:/qdrant/storage:z",
-        "qdrant/qdrant"
+        "docker",
+        "run",
+        "-d",
+        "--name",
+        QDRANT_CONTAINER_NAME,
+        "-p",
+        "6333:6333",
+        "-p",
+        "6334:6334",
+        "-v",
+        f"{storage_path}:/qdrant/storage:z",
+        "qdrant/qdrant",
     ]
 
     try:
@@ -68,17 +79,31 @@ def start_qdrant_container():
         logger.error(f"Stderr: {e.stderr}")
         # Attempt to remove the container if it exists but failed to start (e.g., name conflict)
         if "The container name" in e.stderr and "is already in use" in e.stderr:
-            logger.warning(f"Container '{QDRANT_CONTAINER_NAME}' already exists. Attempting to remove and restart...")
+            logger.warning(
+                f"Container '{QDRANT_CONTAINER_NAME}' already exists. Attempting to remove and restart..."
+            )
             try:
-                subprocess.run(["docker", "rm", "-f", QDRANT_CONTAINER_NAME], check=True, capture_output=True, text=True)
-                logger.info(f"Removed existing container '{QDRANT_CONTAINER_NAME}'. Retrying start...")
+                subprocess.run(
+                    ["docker", "rm", "-f", QDRANT_CONTAINER_NAME],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                logger.info(
+                    f"Removed existing container '{QDRANT_CONTAINER_NAME}'. Retrying start..."
+                )
                 subprocess.run(command, check=True, capture_output=True, text=True)
-                logger.info(f"Qdrant container '{QDRANT_CONTAINER_NAME}' started successfully after retry.")
+                logger.info(
+                    f"Qdrant container '{QDRANT_CONTAINER_NAME}' started successfully after retry."
+                )
                 wait_for_qdrant_ready()
             except Exception as retry_e:
-                logger.error(f"Failed to start Qdrant container even after retry: {retry_e}")
+                logger.error(
+                    f"Failed to start Qdrant container even after retry: {retry_e}"
+                )
         else:
             raise
+
 
 def wait_for_qdrant_ready(timeout=60, interval=1):
     """Waits until the Qdrant service is ready."""
@@ -102,10 +127,13 @@ def wait_for_qdrant_ready(timeout=60, interval=1):
         time.sleep(interval)
     raise RuntimeError("Qdrant did not become ready in time.")
 
+
 def stop_qdrant_container():
     """Stops the Qdrant Docker container."""
     if not should_manage_qdrant_container():
-        logger.info("Qdrant Docker stop skipped; this process does not own Docker lifecycle.")
+        logger.info(
+            "Qdrant Docker stop skipped; this process does not own Docker lifecycle."
+        )
         return
 
     if not is_qdrant_container_running():
@@ -114,7 +142,12 @@ def stop_qdrant_container():
 
     logger.info(f"Stopping Qdrant container '{QDRANT_CONTAINER_NAME}'...")
     try:
-        subprocess.run(["docker", "stop", QDRANT_CONTAINER_NAME], check=True, capture_output=True, text=True)
+        subprocess.run(
+            ["docker", "stop", QDRANT_CONTAINER_NAME],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
         logger.info(f"Qdrant container '{QDRANT_CONTAINER_NAME}' stopped successfully.")
     except subprocess.CalledProcessError as e:
         logger.error(f"Error stopping Qdrant container: {e}")

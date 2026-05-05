@@ -33,6 +33,7 @@ def make_connector():
 
 def _fake_entry():
     from raggy_mcp.settings import METADATA_PATH
+
     return SimpleNamespace(
         id="1",
         payload={"document": "hello", METADATA_PATH: {}},
@@ -47,7 +48,9 @@ async def test_hybrid_rrf_exception_falls_back_to_dense():
 
     fake_client = MagicMock()
     fake_client.collection_exists = AsyncMock(return_value=True)
-    fake_client.query_points = AsyncMock(side_effect=Exception("sparse vector not found"))
+    fake_client.query_points = AsyncMock(
+        side_effect=Exception("sparse vector not found")
+    )
     connector._client = fake_client
 
     # _hybrid_search_client_side also calls query_points with dense only; mock it to succeed
@@ -129,7 +132,11 @@ async def test_hybrid_rrf_empty_rrf_populates_warnings():
     )
 
     assert sink, "empty-RRF warning must be pushed to ContextVar"
-    assert "sparse" in sink[0].lower() or "0 results" in sink[0].lower() or "dense" in sink[0].lower()
+    assert (
+        "sparse" in sink[0].lower()
+        or "0 results" in sink[0].lower()
+        or "dense" in sink[0].lower()
+    )
 
 
 @pytest.mark.asyncio
@@ -170,6 +177,7 @@ async def test_hybrid_rrf_both_fallbacks_fail_returns_empty():
 
 
 # ── get_sparse_vector_name tests ─────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_get_sparse_vector_name_returns_name_for_hybrid_collection():

@@ -17,8 +17,8 @@ DEFAULT_TOOL_FIND_DESCRIPTION = (
 
 DEFAULT_TOOL_BATCH_STORE_DESCRIPTION = (
     "Store multiple entries efficiently in one operation. Qdrant will automatically embed the content server-side. "
-    "Usage: qdrant_store_batch(entries=[{\"content\": \"text1\", \"metadata\": {\"key\": \"val1\"}}, "
-    "{\"content\": \"text2\", \"metadata\": {\"key\": \"val2\"}}], collection_name='my_collection'). "
+    'Usage: qdrant_store_batch(entries=[{"content": "text1", "metadata": {"key": "val1"}}, '
+    '{"content": "text2", "metadata": {"key": "val2"}}], collection_name=\'my_collection\'). '
     "Each entry is a dict with 'content' (required), 'metadata' (optional dict), and 'id' (optional string). "
     "No limit on batch size for storage - processes all entries provided."
 )

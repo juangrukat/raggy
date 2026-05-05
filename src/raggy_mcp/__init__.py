@@ -21,7 +21,7 @@ Main Components:
 Usage:
     from raggy_mcp import QdrantMCPServer
     from raggy_mcp.settings import QdrantSettings, EmbeddingProviderSettings, ToolSettings
-    
+
     server = QdrantMCPServer(
         tool_settings=ToolSettings(),
         qdrant_settings=QdrantSettings(),
@@ -30,7 +30,7 @@ Usage:
 
 Compatible with:
 - Any MCP-compatible desktop client
-- LM Studio (MCP client)  
+- LM Studio (MCP client)
 - Custom MCP implementations
 - Direct FastMCP usage
 
@@ -42,19 +42,19 @@ __version__ = "0.7.1"
 __author__ = "MCP Server Qdrant Contributors"
 __license__ = "Apache-2.0"
 
+from .embedding_manager import EmbeddingModelInfo, EnhancedEmbeddingModelManager
 from .mcp_server import QdrantMCPServer
-from .qdrant import QdrantConnector, Entry, BatchEntry, CollectionInfo
-from .embedding_manager import EnhancedEmbeddingModelManager, EmbeddingModelInfo
+from .qdrant import BatchEntry, CollectionInfo, Entry, QdrantConnector
 from .settings import (
-    QdrantSettings,
-    EmbeddingProviderSettings, 
-    ToolSettings,
+    EmbeddingProviderSettings,
     FilterableField,
+    QdrantSettings,
+    ToolSettings,
 )
 
 __all__ = [
     "QdrantMCPServer",
-    "QdrantConnector", 
+    "QdrantConnector",
     "Entry",
     "BatchEntry",
     "CollectionInfo",
@@ -62,6 +62,6 @@ __all__ = [
     "EmbeddingModelInfo",
     "QdrantSettings",
     "EmbeddingProviderSettings",
-    "ToolSettings", 
+    "ToolSettings",
     "FilterableField",
 ]

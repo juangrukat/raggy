@@ -29,7 +29,12 @@ def _qdrant_entry(project_root: Path) -> dict:
             "QWEN3_MAX_LENGTH": "1024",
             "QWEN3_DTYPE": "auto",
             "QWEN3_SIDECAR_PATH": str(
-                project_root / "rust" / "qwen3_embedder" / "target" / "release" / "qwen3-embedder"
+                project_root
+                / "rust"
+                / "qwen3_embedder"
+                / "target"
+                / "release"
+                / "qwen3-embedder"
             ),
             "QWEN3_METRICS_PATH": str(
                 project_root / ".local" / "logs" / "qwen3-embeddings.jsonl"
@@ -66,7 +71,9 @@ def main() -> None:
     entry = _qdrant_entry(project_root)
 
     if not (project_root / ".venv" / "bin" / "raggy-mcp").exists():
-        raise SystemExit("Missing .venv/bin/raggy-mcp. Run ./scripts/local-install.sh first.")
+        raise SystemExit(
+            "Missing .venv/bin/raggy-mcp. Run ./scripts/local-install.sh first."
+        )
 
     if config_path.exists():
         config = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}

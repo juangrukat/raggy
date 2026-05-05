@@ -4,8 +4,8 @@ Handles automatic port detection and assignment to avoid conflicts.
 """
 
 import logging
-import socket
 import os
+import socket
 from pathlib import Path
 from typing import Optional
 
@@ -44,7 +44,7 @@ class PortManager:
         start_port: Optional[int] = None,
         end_port: Optional[int] = None,
         host: str = "localhost",
-        use_extended_range: bool = False
+        use_extended_range: bool = False,
     ) -> int:
         """
         Find an available port within a range.
@@ -78,7 +78,9 @@ class PortManager:
 
         # If use_extended_range is True, try the extended range
         if use_extended_range and end_port < PortManager.EXTENDED_RANGE_END:
-            logger.debug(f"Primary range {start_port}-{end_port} exhausted, searching extended range")
+            logger.debug(
+                f"Primary range {start_port}-{end_port} exhausted, searching extended range"
+            )
             extended_start = max(end_port + 1, PortManager.PORT_RANGE_END + 1)
             for port in range(extended_start, PortManager.EXTENDED_RANGE_END + 1):
                 if PortManager.is_port_available(port, host):
@@ -87,7 +89,7 @@ class PortManager:
         # If still no port found, try system-assigned port as last resort
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.bind(('', 0))  # Let system assign port
+            sock.bind(("", 0))  # Let system assign port
             port = sock.getsockname()[1]
             sock.close()
 
@@ -97,7 +99,9 @@ class PortManager:
         except Exception as e:
             logger.error(f"Failed to get system-assigned port: {e}")
 
-        raise RuntimeError(f"No available ports found in any range (tried {start_port}-{PortManager.EXTENDED_RANGE_END})")
+        raise RuntimeError(
+            f"No available ports found in any range (tried {start_port}-{PortManager.EXTENDED_RANGE_END})"
+        )
 
     @staticmethod
     def setup_port_from_env() -> int:
@@ -117,7 +121,9 @@ class PortManager:
                 if PortManager.is_port_available(requested_port):
                     return requested_port
                 else:
-                    logger.debug(f"Configured port {requested_port} is not available, finding alternative...")
+                    logger.debug(
+                        f"Configured port {requested_port} is not available, finding alternative..."
+                    )
                     preferred_port = requested_port
             except ValueError:
                 logger.error(f"Invalid port number in FASTMCP_PORT: {env_port}")
@@ -128,16 +134,19 @@ class PortManager:
         # Auto-detect available port with extended search
         try:
             available_port = PortManager.find_available_port(
-                preferred_port=preferred_port,
-                use_extended_range=True
+                preferred_port=preferred_port, use_extended_range=True
             )
 
             # Update environment variable so FastMCP uses the found port
             os.environ["FASTMCP_PORT"] = str(available_port)
 
             if available_port != preferred_port:
-                logger.debug(f"Port conflict detected. Using port {available_port} instead of {preferred_port}")
-                print(f"⚠️  Port {preferred_port} was busy. MCP server will use port {available_port}")
+                logger.debug(
+                    f"Port conflict detected. Using port {available_port} instead of {preferred_port}"
+                )
+                print(
+                    f"⚠️  Port {preferred_port} was busy. MCP server will use port {available_port}"
+                )
 
             return available_port
 
@@ -162,9 +171,10 @@ class PortManager:
 
         return f"http://{host}:{port}"
 
-
     @staticmethod
-    def diagnose_port_issues(port_range_start: Optional[int] = None, port_range_end: Optional[int] = None) -> None:
+    def diagnose_port_issues(
+        port_range_start: Optional[int] = None, port_range_end: Optional[int] = None
+    ) -> None:
         """
         Diagnose and report common port issues.
 
@@ -180,16 +190,22 @@ class PortManager:
         unavailable_ports = []
 
         sample_end = min(start + 49, end)
-        for port in range(start, sample_end + 1):  # Check up to 50 ports or the full range
+        for port in range(
+            start, sample_end + 1
+        ):  # Check up to 50 ports or the full range
             if PortManager.is_port_available(port):
                 available_count += 1
             else:
                 unavailable_ports.append(port)
-        print(f"📊 Found {available_count} available ports in sample range {start}-{min(start+49, end)}")
-        print(f"📊 Found {available_count} available ports in sample range {start}-{sample_end}")
+        print(
+            f"📊 Found {available_count} available ports in sample range {start}-{min(start + 49, end)}"
+        )
+        print(
+            f"📊 Found {available_count} available ports in sample range {start}-{sample_end}"
+        )
 
         if unavailable_ports:
-            ellipsis = '...' if len(unavailable_ports) > 10 else ''
+            ellipsis = "..." if len(unavailable_ports) > 10 else ""
             print(f"🚫 Busy ports detected: {unavailable_ports[:10]}{ellipsis}")
 
         if available_count == 0:
@@ -198,7 +214,9 @@ class PortManager:
             print("   • Check if other MCP servers are running")
             print("   • Kill any stuck processes: pkill -f mcp-server")
             print("   • Restart system network services")
-            print("   • Use a different port range with FASTMCP_PORT environment variable")
+            print(
+                "   • Use a different port range with FASTMCP_PORT environment variable"
+            )
 
 
 def initialize_port_management() -> int:
@@ -249,9 +267,6 @@ def setup_qdrant_config():
         # Use existing URL
         qdrant_url = os.environ.get("QDRANT_URL", "http://localhost:6333")
         print(f"🌐 Using external Qdrant: {qdrant_url}")
-
-
-
 
 
 def print_server_info():

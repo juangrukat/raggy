@@ -1,8 +1,8 @@
 # ruff: noqa: E402
 
+import logging
 import os
 import sys
-import logging
 
 from raggy_mcp._warnings import filter_upstream_warnings
 
@@ -11,6 +11,7 @@ filter_upstream_warnings()
 # Load config file BEFORE importing settings — injects YAML values as env vars
 # for any key not already set in the environment.
 from raggy_mcp.config import load_qdrant_config
+
 load_qdrant_config()
 
 from raggy_mcp.mcp_server import QdrantMCPServer
@@ -23,9 +24,10 @@ from raggy_mcp.settings import (
 # Configure logging to stderr to avoid stdout contamination in MCP mode
 logging.basicConfig(
     level=logging.INFO,  # Set to INFO to see informational messages from docker_utils
-    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
-    stream=sys.stderr  # Always use stderr for logs
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    stream=sys.stderr,  # Always use stderr for logs
 )
+
 
 # Detect MCP stdio mode more reliably
 def is_mcp_stdio_mode() -> bool:
@@ -45,10 +47,12 @@ def is_mcp_stdio_mode() -> bool:
 
     return False
 
+
 # Only do port management for interactive/non-MCP usage
 if not is_mcp_stdio_mode():
     try:
         from raggy_mcp.port_manager import initialize_port_management, print_server_info
+
         port = initialize_port_management()
         print_server_info()
     except Exception as e:

@@ -11,5 +11,13 @@ async def test_async_metadata_preserves_base_fields(tmp_path):
     sync_meta = get_macos_metadata(str(path))
     async_meta = await get_macos_metadata_async(str(path))
 
-    for key in ("path", "filename", "extension", "size_bytes", "is_hidden", "has_text", "tags"):
+    for key in (
+        "path",
+        "filename",
+        "extension",
+        "size_bytes",
+        "is_hidden",
+        "has_text",
+        "tags",
+    ):
         assert async_meta[key] == sync_meta[key]

@@ -54,7 +54,9 @@ class OriginValidationMiddleware(BaseHTTPMiddleware):
         if origin:
             # An origin like http://example.com:1234 → check the scheme://host portion
             # and accept if any allowed origin is a prefix.
-            if not any(origin == o or origin.startswith(o + ":") for o in self._allowed):
+            if not any(
+                origin == o or origin.startswith(o + ":") for o in self._allowed
+            ):
                 logger.warning("Rejected request with disallowed Origin: %s", origin)
                 return JSONResponse(
                     status_code=403,
@@ -76,7 +78,9 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
         # Allow OpenAPI/health probes without auth if you ever add them; for now require all.
         header = request.headers.get("authorization", "")
         if not header.lower().startswith("bearer "):
-            return JSONResponse(status_code=401, content={"error": "missing_bearer_token"})
+            return JSONResponse(
+                status_code=401, content={"error": "missing_bearer_token"}
+            )
         provided = header.split(" ", 1)[1].strip()
         if provided != self._token:
             return JSONResponse(status_code=401, content={"error": "invalid_token"})

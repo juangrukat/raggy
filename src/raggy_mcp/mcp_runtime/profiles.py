@@ -64,21 +64,19 @@ TOOL_PROFILES: dict[str, ToolProfile] = {
     "get_collection_schema": ToolProfile.MINIMAL,
     "list_search_modes": ToolProfile.MINIMAL,
     "get_server_capabilities": ToolProfile.MINIMAL,
-
     # --- canonical: collection lifecycle + setup ---
     "create_collection": ToolProfile.CANONICAL,
     "create_hybrid_collection": ToolProfile.CANONICAL,
     "create_late_interaction_collection": ToolProfile.CANONICAL,
     "bootstrap_collection_indexes": ToolProfile.CANONICAL,
     "set_collection_embedding_model": ToolProfile.CANONICAL,
-
     # --- full: admin / raw / mutation-heavy ---
     "delete_collection": ToolProfile.FULL,
-    "qdrant_find": ToolProfile.FULL,        # raw chunk-level search
-    "qdrant_store": ToolProfile.FULL,       # raw chunk-level store
-    "qdrant_store_batch": ToolProfile.FULL, # raw batch store
+    "qdrant_find": ToolProfile.FULL,  # raw chunk-level search
+    "qdrant_store": ToolProfile.FULL,  # raw chunk-level store
+    "qdrant_store_batch": ToolProfile.FULL,  # raw batch store
     "scroll_collection": ToolProfile.FULL,  # raw browse
-    "hybrid_search": ToolProfile.FULL,      # raw chunk-level dense (legacy)
+    "hybrid_search": ToolProfile.FULL,  # raw chunk-level dense (legacy)
 }
 
 
