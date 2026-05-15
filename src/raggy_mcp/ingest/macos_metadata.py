@@ -217,6 +217,8 @@ async def _get_finder_tags_async(path: str) -> list[str]:
 MACOS_INDEX_FIELDS: list[tuple[str, str]] = [
     # Identity
     ("metadata.document_id", "keyword"),
+    ("metadata.source_id", "keyword"),
+    ("metadata.version_id", "keyword"),
     ("metadata.path", "keyword"),
     ("metadata.parent_path", "keyword"),
     ("metadata.filename", "keyword"),

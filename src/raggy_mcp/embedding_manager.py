@@ -120,8 +120,10 @@ class EnhancedEmbeddingModelManager:
             qwen3_sidecar_path=self.default_settings.qwen3_sidecar_path,
             qwen3_max_length=self.default_settings.qwen3_max_length,
             qwen3_dtype=self.default_settings.qwen3_dtype,
+            qwen3_output_dimension=self.default_settings.qwen3_output_dimension,
             qwen3_metrics_path=self.default_settings.qwen3_metrics_path,
             qwen3_response_limit_bytes=self.default_settings.qwen3_response_limit_bytes,
+            qwen3_idle_timeout_seconds=self.default_settings.qwen3_idle_timeout_seconds,
         )
         return create_embedding_provider(settings)
 

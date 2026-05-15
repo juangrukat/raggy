@@ -234,7 +234,11 @@ def build_ingest():
         async def ingest_file(coll, uploaded, path):
             from pathlib import Path as P
 
-            from raggy_mcp.ingest.document_id import compute_document_id
+            from raggy_mcp.ingest.document_id import (
+                compute_document_id,
+                compute_source_id,
+                compute_version_id,
+            )
             from raggy_mcp.ingest.extractor import build_chunks, extract_text
             from raggy_mcp.ingest.macos_metadata import get_macos_metadata
             from raggy_mcp.qdrant import BatchEntry
@@ -257,7 +261,11 @@ def build_ingest():
                         "has_text": True,
                         "extractor_used": doc.extractor_used,
                         "char_count": doc.char_count,
-                        "document_id": compute_document_id(str(p)),
+                        "document_id": compute_document_id(doc.text, path=str(p)),
+                        "source_id": compute_source_id(str(p)),
+                        "version_id": compute_version_id(
+                            doc.text, meta.get("modified_at")
+                        ),
                         "parent_path": str(p.parent),
                     }
                 )
@@ -304,7 +312,11 @@ def build_ingest():
         async def ingest_folder(coll, path, rec):
             from pathlib import Path as P
 
-            from raggy_mcp.ingest.document_id import compute_document_id
+            from raggy_mcp.ingest.document_id import (
+                compute_document_id,
+                compute_source_id,
+                compute_version_id,
+            )
             from raggy_mcp.ingest.extractor import (
                 SUPPORTED_EXTENSIONS,
                 build_chunks,
@@ -346,7 +358,11 @@ def build_ingest():
                             "has_text": True,
                             "extractor_used": doc.extractor_used,
                             "char_count": doc.char_count,
-                            "document_id": compute_document_id(str(fp)),
+                            "document_id": compute_document_id(doc.text, path=str(fp)),
+                            "source_id": compute_source_id(str(fp)),
+                            "version_id": compute_version_id(
+                                doc.text, meta.get("modified_at")
+                            ),
                             "parent_path": str(fp.parent),
                         }
                     )

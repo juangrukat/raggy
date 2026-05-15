@@ -415,12 +415,13 @@ Important environment variables:
 | `EMBEDDING_MODEL` | `Qwen/Qwen3-Embedding-4B` | Default dense embedding model. |
 | `EMBEDDING_DEVICE` | `auto` | Device hint: `auto`, `cpu`, `cuda`, `mps`, or supported local equivalent. |
 | `QWEN3_SIDECAR_PATH` | built sidecar path via scripts | Rust Qwen3 embedder binary path. |
+| `QWEN3_IDLE_TIMEOUT_SECONDS` | `300` | Seconds to keep the Qwen3 sidecar warm after the last request. `0` disables automatic idle shutdown. |
 | `QDRANT_SPARSE_MODEL` | `Qdrant/bm25` | Sparse model for hybrid/rerank retrieval. |
 | `QDRANT_RERANKER_MODEL` | `Xenova/ms-marco-MiniLM-L-6-v2` | Default reranker for `mode=rerank`. |
-| `QDRANT_RERANK_PREFETCH_LIMIT` | `0` | Candidate pool before reranking; `0` means auto. |
-| `QDRANT_RERANK_TOP_K` | `0` | Max candidates scored by reranker; `0` means all prefetched. |
-| `QDRANT_INGEST_CHUNK_SIZE` | `700` | Ingest chunk size in characters. |
-| `QDRANT_INGEST_CHUNK_OVERLAP` | `70` | Character overlap between chunks. |
+| `QDRANT_RERANK_PREFETCH_LIMIT` | `0` | Candidate pool before reranking; `0` means auto. Try 30 fast, 50 balanced, 100 deep. |
+| `QDRANT_RERANK_TOP_K` | `0` | Max candidates scored by reranker; `0` means balanced auto. |
+| `QDRANT_INGEST_CHUNK_SIZE` | `1000` | Ingest chunk size in characters. |
+| `QDRANT_INGEST_CHUNK_OVERLAP` | `150` | Character overlap between chunks. |
 | `QDRANT_WRITE_MAX_CONCURRENCY` | `1` | Concurrent embedding/upsert jobs per server process. |
 | `QDRANT_WRITE_QUEUE_SIZE` | `8` | Queued write jobs before requests are rejected. |
 | `MCP_TRANSPORT` | `stdio` | `stdio`, `sse`, or `streamable-http`. |

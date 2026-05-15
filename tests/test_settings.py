@@ -83,6 +83,8 @@ class TestEmbeddingProviderSettings:
         assert settings.device == "auto"
         assert settings.qwen3_metrics_path is None
         assert settings.qwen3_response_limit_bytes == 64 * 1024 * 1024
+        assert settings.qwen3_idle_timeout_seconds == 300
+        assert settings.qwen3_output_dimension is None
 
     def test_custom_values(self, monkeypatch):
         """Test loading custom values from environment variables."""
@@ -90,12 +92,16 @@ class TestEmbeddingProviderSettings:
         monkeypatch.setenv("EMBEDDING_DEVICE", "mps")
         monkeypatch.setenv("QWEN3_METRICS_PATH", "/tmp/qwen3-metrics.jsonl")
         monkeypatch.setenv("QWEN3_RESPONSE_LIMIT_BYTES", "123456")
+        monkeypatch.setenv("QWEN3_IDLE_TIMEOUT_SECONDS", "999")
+        monkeypatch.setenv("QWEN3_OUTPUT_DIMENSION", "1280")
         settings = EmbeddingProviderSettings()
         assert settings.provider_type == EmbeddingProviderType.FASTEMBED
         assert settings.model_name == "custom_model"
         assert settings.device == "mps"
         assert settings.qwen3_metrics_path == "/tmp/qwen3-metrics.jsonl"
         assert settings.qwen3_response_limit_bytes == 123456
+        assert settings.qwen3_idle_timeout_seconds == 999
+        assert settings.qwen3_output_dimension == 1280
 
 
 class TestToolSettings:

@@ -143,6 +143,7 @@ def test_scanned_pdf_preflight_skips_full_text_extractors(monkeypatch, tmp_path)
     def fail_if_called(_):
         raise AssertionError("full PDF extraction should not run for scanned preflight")
 
+    monkeypatch.setattr(extractor, "_pdf_pymupdf", fail_if_called)
     monkeypatch.setattr(extractor, "_pdf_pdfminer", fail_if_called)
     monkeypatch.setattr(extractor, "_pdf_pypdf", fail_if_called)
 
@@ -173,6 +174,7 @@ def test_password_protected_pdf_fails_before_extraction(monkeypatch):
     def fail_if_called(_):
         raise AssertionError("encrypted PDF should not be extracted")
 
+    monkeypatch.setattr(extractor, "_pdf_pymupdf", fail_if_called)
     monkeypatch.setattr(extractor, "_pdf_pdfminer", fail_if_called)
     monkeypatch.setattr(extractor, "_pdf_pypdf", fail_if_called)
 
@@ -181,3 +183,65 @@ def test_password_protected_pdf_fails_before_extraction(monkeypatch):
     assert doc.extractor_used == "pdf-preflight"
     assert doc.char_count == 0
     assert "password-protected" in doc.error
+
+
+def test_pdf_extraction_prefers_pymupdf(monkeypatch):
+    monkeypatch.setattr(
+        extractor,
+        "profile_pdf",
+        lambda _: PdfProfile(
+            has_text=True,
+            has_images=False,
+            is_probably_scanned=False,
+            is_encrypted=False,
+            requires_password=False,
+            pages_with_text=[0],
+            pages_sampled=1,
+            page_count=1,
+        ),
+    )
+    monkeypatch.setattr(
+        extractor, "_pdf_pymupdf", lambda _: ("pymupdf text", 1, "pymupdf")
+    )
+
+    def fail_if_called(_):
+        raise AssertionError("fallback extractors should not run when PyMuPDF works")
+
+    monkeypatch.setattr(extractor, "_pdf_pdfminer", fail_if_called)
+    monkeypatch.setattr(extractor, "_pdf_pypdf", fail_if_called)
+
+    doc = extractor._extract_pdf("/tmp/book.pdf")
+
+    assert doc.extractor_used == "pymupdf"
+    assert doc.text == "pymupdf text"
+
+
+def test_pdf_extraction_falls_back_from_pymupdf_to_pdfminer(monkeypatch):
+    monkeypatch.setattr(
+        extractor,
+        "profile_pdf",
+        lambda _: PdfProfile(
+            has_text=True,
+            has_images=False,
+            is_probably_scanned=False,
+            is_encrypted=False,
+            requires_password=False,
+            pages_with_text=[0],
+            pages_sampled=1,
+            page_count=1,
+        ),
+    )
+    monkeypatch.setattr(extractor, "_pdf_pymupdf", lambda _: ("", None, "pymupdf"))
+    monkeypatch.setattr(
+        extractor, "_pdf_pdfminer", lambda _: ("pdfminer text", 1, "pdfminer")
+    )
+
+    def fail_if_called(_):
+        raise AssertionError("pypdf should not run when pdfminer works")
+
+    monkeypatch.setattr(extractor, "_pdf_pypdf", fail_if_called)
+
+    doc = extractor._extract_pdf("/tmp/book.pdf")
+
+    assert doc.extractor_used == "pdfminer"
+    assert doc.text == "pdfminer text"

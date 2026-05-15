@@ -114,10 +114,10 @@ DEFAULT_TOOL_INGEST_FOLDER_DESCRIPTION = (
 DEFAULT_TOOL_SEARCH_DOCUMENTS_DESCRIPTION = (
     "Semantic search with file-level grouping and reranking. "
     "Usage: search_documents(query='...', collection_name='my_docs', limit=10, "
-    "chunks_per_document=4, filter={'must': [{'field':'extension','op':'==','value':'pdf'}]}, "
+    "chunks_per_document=3, filter={'must': [{'field':'extension','op':'==','value':'pdf'}]}, "
     "mode='dense'|'hybrid'|'rerank'|'late_interaction'). "
-    "Groups chunks by document_id so a single long file does not dominate results, "
-    "returning one summary entry per file with its best representative chunks. "
+    "Retrieves a wider chunk pool, reranks chunks when requested, then groups by document_id "
+    "so long files can contribute multiple strong sections without dominating results. "
     "Filter grammar uses must/should/must_not clauses with ops: ==, !=, >, >=, <, <=, any, except. "
     "mode='hybrid' requires a hybrid collection (see create_hybrid_collection); "
     "mode='rerank' adds a cross-encoder rerank pass over hybrid candidates; "

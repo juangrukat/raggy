@@ -1,10 +1,9 @@
 """
-Document-grouped search.
+Chunk-first search with document-aware grouping.
 
-Instead of returning raw chunk-level hits (where one long PDF can dominate
-the top results with many adjacent chunks), this fetches a wider chunk pool,
-groups by `metadata.document_id`, scores each document by its best chunk,
-and returns one summary entry per document with its top representative chunk(s).
+Instead of grouping immediately (which can hide several relevant sections from
+the same long document), this fetches a wider chunk pool, optionally reranks
+chunks, applies diversity, and only then groups by `metadata.document_id`.
 
 Two-stage pipeline
 ------------------
@@ -21,7 +20,7 @@ Stage 1 — retrieval (fast):
 Stage 2 — reranking (optional, expensive):
   A cross-encoder or generative reranker (e.g. Qwen3-Reranker-4B) re-scores
   the merged candidate pool against the PRIMARY query. A diversity pass then
-  reduces redundancy across pages/sections before the final grouping step.
+  reduces redundancy across pages/sections before final document grouping.
 
 Why multi-query matters
 -----------------------
@@ -56,12 +55,14 @@ from raggy_mcp.search.reranker import RerankCandidate, Reranker
 
 # Default candidate pool sizes.
 _DEFAULT_PREFETCH_DENSE = 80  # dense-only or hybrid without reranking
-_DEFAULT_PREFETCH_RERANK = 100  # with reranking: wider pool feeds the reranker
+_DEFAULT_PREFETCH_RERANK = 80  # with reranking: wider pool feeds the reranker
+_DEFAULT_RERANK_TOP_K = 50  # balanced default for MiniLM-style rerankers
 _MAX_PREFETCH = 300  # hard ceiling to avoid memory/latency blowout
 
 # Diversity: max chunks from the same inferred "section" before we defer extras.
 # A section is the page number if available, else chunk_index // 5.
 _DIVERSITY_MAX_PER_SECTION = 2
+_PRERERANK_MAX_PER_STORY = 6
 
 
 def _content_hash(content: str) -> str:
@@ -79,6 +80,44 @@ def _section_key(meta: dict) -> str:
         return f"s{int(idx) // 5}"
     # fallback: no section info → treat every chunk as its own section
     return _content_hash(meta.get("path", "") + str(meta.get("chunk_index", "")))
+
+
+def _story_key(meta: dict) -> str | None:
+    title = meta.get("story_title")
+    if title:
+        return str(title)
+    section_path = meta.get("section_path") or meta.get("heading_path")
+    if isinstance(section_path, list) and section_path:
+        return " / ".join(str(part) for part in section_path)
+    if isinstance(section_path, str) and section_path:
+        return section_path
+    section = meta.get("section")
+    return str(section) if section else None
+
+
+def _limit_per_story(
+    scored: list[tuple[Any, float]],
+    max_per_story: int = _PRERERANK_MAX_PER_STORY,
+) -> list[tuple[Any, float]]:
+    """Limit story/section flooding before expensive reranking when metadata exists."""
+    story_counts: dict[str, int] = {}
+    selected: list[tuple[Any, float]] = []
+    deferred: list[tuple[Any, float]] = []
+
+    for entry, score in scored:
+        meta = (entry.metadata or {}) if hasattr(entry, "metadata") else {}
+        key = _story_key(meta)
+        if key is None:
+            selected.append((entry, score))
+            continue
+        if story_counts.get(key, 0) < max_per_story:
+            selected.append((entry, score))
+            story_counts[key] = story_counts.get(key, 0) + 1
+        else:
+            deferred.append((entry, score))
+
+    selected.extend(deferred)
+    return selected
 
 
 def _diversity_pass(
@@ -202,7 +241,7 @@ async def search_documents_grouped(
     collection_name: str,
     *,
     limit: int = 10,
-    chunks_per_document: int = 4,
+    chunks_per_document: int = 3,
     query_filter: models.Filter | None = None,
     min_score: float | None = None,
     sparse_provider: Any = None,
@@ -338,7 +377,9 @@ async def _maybe_rerank(
     if not use_reranker or not raw:
         return raw
 
-    pool = raw if rerank_top_k is None else raw[:rerank_top_k]
+    if rerank_top_k is None:
+        rerank_top_k = _DEFAULT_RERANK_TOP_K
+    pool = _limit_per_story(raw)[:rerank_top_k]
     candidates = [
         RerankCandidate(
             content=entry.content,

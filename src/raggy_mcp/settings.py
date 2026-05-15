@@ -136,10 +136,20 @@ class EmbeddingProviderSettings(BaseSettings):
     )
     qwen3_max_length: int = Field(default=1024, validation_alias="QWEN3_MAX_LENGTH")
     qwen3_dtype: str = Field(default="auto", validation_alias="QWEN3_DTYPE")
+    qwen3_output_dimension: int | None = Field(
+        default=None,
+        validation_alias="QWEN3_OUTPUT_DIMENSION",
+        description="Optional Matryoshka output dimension for Qwen3 embeddings. Must be <= the model's native size.",
+    )
     qwen3_response_limit_bytes: int = Field(
         default=64 * 1024 * 1024,
         validation_alias="QWEN3_RESPONSE_LIMIT_BYTES",
         description="Async stdout read limit for large Qwen3 sidecar JSON embedding responses.",
+    )
+    qwen3_idle_timeout_seconds: int = Field(
+        default=300,
+        validation_alias="QWEN3_IDLE_TIMEOUT_SECONDS",
+        description="Seconds to keep the Qwen3 sidecar alive after the last request. 0 disables automatic idle shutdown.",
     )
     qwen3_metrics_path: str | None = Field(
         default=None,
@@ -273,16 +283,15 @@ class QdrantSettings(BaseSettings):
         description="Task instruction for Qwen3 generative rerankers.",
     )
 
-    # Candidate pool size before reranking. 0 = auto (100 with reranker, 80 without).
-    # Raise to 120-150 for better recall when using Qwen3-Reranker-4B on book PDFs.
+    # Candidate pool size before reranking. 0 = auto (80). Raise to 100 for deeper
+    # recall, or lower to 30 for fast MiniLM reranking.
     rerank_prefetch_limit: int = Field(
         default=0,
         validation_alias="QDRANT_RERANK_PREFETCH_LIMIT",
         description="Raw candidate pool size fed to the reranker. 0 = auto.",
     )
 
-    # Max chunks fed to the reranker from the candidate pool. 0 = all candidates.
-    # Limiting to 60-80 speeds up Qwen3 reranking with minimal quality loss.
+    # Max chunks fed to the reranker from the candidate pool. 0 = balanced auto (50).
     rerank_top_k: int = Field(
         default=0,
         validation_alias="QDRANT_RERANK_TOP_K",

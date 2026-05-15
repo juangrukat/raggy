@@ -82,7 +82,9 @@ _YAML_TO_ENV: dict[str, str] = {
     "models.reranker_providers": "QDRANT_RERANKER_PROVIDERS",
     "models.qwen3.max_length": "QWEN3_MAX_LENGTH",
     "models.qwen3.dtype": "QWEN3_DTYPE",
+    "models.qwen3.output_dimension": "QWEN3_OUTPUT_DIMENSION",
     "models.qwen3.response_limit_bytes": "QWEN3_RESPONSE_LIMIT_BYTES",
+    "models.qwen3.idle_timeout_seconds": "QWEN3_IDLE_TIMEOUT_SECONDS",
     # ingest
     "ingest.chunk_size": "QDRANT_INGEST_CHUNK_SIZE",
     "ingest.chunk_overlap": "QDRANT_INGEST_CHUNK_OVERLAP",

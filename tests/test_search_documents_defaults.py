@@ -34,5 +34,4 @@ async def test_search_documents_default_surfaces_multiple_chunks():
         "chunk 0",
         "chunk 1",
         "chunk 2",
-        "chunk 3",
     ]

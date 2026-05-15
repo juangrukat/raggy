@@ -3,7 +3,7 @@ Text extraction for ingest pipeline.
 Priority per format:
   .txt / .md  → direct UTF-8 read (charset fallback)
   structured  → JSON/JSONL/CSV/TSV rendered into searchable text
-  .pdf        → pdfminer.six primary, pypdf fallback
+  .pdf        → PyMuPDF primary, pdfminer.six fallback, pypdf final fallback
   .docx       → python-docx
 """
 
@@ -15,6 +15,9 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from raggy_mcp.ingest.chunkers import resolve_chunker
+from raggy_mcp.ingest.types import Chunk, ExtractedDocument
 
 logger = logging.getLogger(__name__)
 
@@ -70,19 +73,11 @@ SUPPORTED_EXTENSIONS = (
     PLAIN_TEXT_EXTENSIONS | STRUCTURED_TEXT_EXTENSIONS | {".pdf", ".docx"}
 )
 
-# Max chars per chunk; overlap in chars. Qwen3/Candle is sensitive to inputs
-# that exceed its tokenizer split limits, so keep local chunks conservative.
-DEFAULT_CHUNK_SIZE = 700
-DEFAULT_CHUNK_OVERLAP = 70
-
-
-@dataclass
-class ExtractedDocument:
-    text: str
-    extractor_used: str
-    char_count: int
-    page_count: int | None = None
-    error: str | None = None
+# Max chars per chunk; overlap in chars. Narrative PDFs need enough room for
+# character/event context across paragraphs, while still staying well below
+# local model tokenizer limits.
+DEFAULT_CHUNK_SIZE = 1000
+DEFAULT_CHUNK_OVERLAP = 150
 
 
 @dataclass
@@ -96,14 +91,6 @@ class PdfProfile:
     pages_sampled: int
     page_count: int
     error: str | None = None
-
-
-@dataclass
-class Chunk:
-    text: str
-    chunk_index: int
-    total_chunks: int
-    metadata: dict = field(default_factory=dict)
 
 
 def extract_text(path: str) -> ExtractedDocument:
@@ -131,49 +118,20 @@ def extract_text(path: str) -> ExtractedDocument:
 
 def build_chunks(doc: ExtractedDocument, file_metadata: dict) -> list[Chunk]:
     """
-    Split extracted text into overlapping chunks.
-    Splits on paragraph boundaries first, then hard-cuts long paragraphs.
+    Split extracted text into chunks using a format-aware chunker.
+
+    Dispatches to the appropriate chunker based on file extension:
+      - .md / .markdown / .rst → MarkdownChunker (heading-aware)
+      - .py / .js / .ts / .rs / etc. → CodeChunker (symbol-aware)
+      - everything else → GenericChunker (paragraph-boundary overlap)
+
+    The ``heading_path``, ``section``, ``code_symbol``, and ``code_type``
+    metadata fields are set by the format-aware chunkers.
     """
-    chunk_size = _env_int("QDRANT_INGEST_CHUNK_SIZE", DEFAULT_CHUNK_SIZE)
-    chunk_overlap = min(
-        _env_int("QDRANT_INGEST_CHUNK_OVERLAP", DEFAULT_CHUNK_OVERLAP),
-        max(0, chunk_size - 1),
-    )
-    stride = max(1, chunk_size - chunk_overlap)
-    # Normalize internal whitespace: collapse multiple spaces/tabs to one.
-    # PDF extractors (pdfminer, pdfplumber) often produce double-spaced text
-    # from two-column or justified layouts.  This prevents search phrase
-    # mismatches while preserving paragraph structure.
-    normalized = re.sub(r"[^\S\n]+", " ", doc.text)
-    paragraphs = [p.strip() for p in re.split(r"\n{2,}", normalized) if p.strip()]
-    raw_chunks: list[str] = []
-    current = ""
-
-    for para in paragraphs:
-        if len(para) > chunk_size:
-            # Hard split the oversized paragraph
-            if current:
-                raw_chunks.append(current)
-                current = ""
-            for i in range(0, len(para), stride):
-                raw_chunks.append(para[i : i + chunk_size])
-        elif len(current) + len(para) + 2 > chunk_size:
-            raw_chunks.append(current)
-            current = para
-        else:
-            current = (current + "\n\n" + para).strip() if current else para
-
-    if current:
-        raw_chunks.append(current)
-
-    total = len(raw_chunks)
-    chunks = []
-    for i, text in enumerate(raw_chunks):
-        chunk_meta = {**file_metadata, "chunk_index": i, "total_chunks": total}
-        chunks.append(
-            Chunk(text=text, chunk_index=i, total_chunks=total, metadata=chunk_meta)
-        )
-    return chunks
+    ext = file_metadata.get("extension", "")
+    extension = f".{ext}" if ext and not ext.startswith(".") else ext
+    chunker = resolve_chunker(extension if extension else None)
+    return chunker.chunk(doc, file_metadata)
 
 
 def _env_int(name: str, default: int) -> int:
@@ -348,7 +306,9 @@ def _extract_pdf(path: str) -> ExtractedDocument:
             ),
         )
 
-    text, pages, extractor = _pdf_pdfminer(path)
+    text, pages, extractor = _pdf_pymupdf(path)
+    if not text:
+        text, pages, extractor = _pdf_pdfminer(path)
     if not text:
         text, pages, extractor = _pdf_pypdf(path)
     if not text:
@@ -472,6 +432,19 @@ def _pdfminer_page_text(path: str, page_number: int) -> str:
             f"pdfminer page preflight failed for {path} page {page_number}: {e}"
         )
         return ""
+
+
+def _pdf_pymupdf(path: str) -> tuple[str, int | None, str]:
+    try:
+        import fitz
+
+        with fitz.open(path) as doc:
+            pages = doc.page_count
+            page_texts = [page.get_text("text") or "" for page in doc]
+        return "\n\n".join(page_texts).strip(), pages, "pymupdf"
+    except Exception as e:
+        logger.debug(f"PyMuPDF failed for {path}: {e}")
+        return "", None, "pymupdf"
 
 
 def _pdf_pdfminer(path: str) -> tuple[str, int | None, str]:

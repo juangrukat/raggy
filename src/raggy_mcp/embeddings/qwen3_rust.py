@@ -1,5 +1,6 @@
 import asyncio
 import json
+import math
 import os
 import time
 from datetime import datetime, timezone
@@ -14,7 +15,17 @@ KNOWN_QWEN3_DIMS: dict[str, int] = {
     "Qwen/Qwen3-Embedding-8B": 4096,
 }
 
-IDLE_TIMEOUT = 120  # seconds — keep sidecar alive between queries
+DEFAULT_IDLE_TIMEOUT_SECONDS = 300  # keep sidecar warm for bursty search sessions
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if not raw:
+        return default
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return default
 
 
 class Qwen3RustProvider(EmbeddingProvider):
@@ -27,14 +38,26 @@ class Qwen3RustProvider(EmbeddingProvider):
         device: str = "auto",
         max_length: int = 1024,
         dtype: str = "auto",
+        output_dimension: int | None = None,
         binary_path: str | None = None,
         metrics_path: str | None = None,
         response_limit_bytes: int = 64 * 1024 * 1024,
+        idle_timeout_seconds: int | None = None,
     ) -> None:
         self.model_name = model_name
         self.device = device
         self.max_length = max_length
         self.dtype = dtype
+        native_size = KNOWN_QWEN3_DIMS.get(model_name)
+        if output_dimension is not None:
+            if output_dimension < 1:
+                raise ValueError("QWEN3_OUTPUT_DIMENSION must be positive.")
+            if native_size is not None and output_dimension > native_size:
+                raise ValueError(
+                    f"QWEN3_OUTPUT_DIMENSION={output_dimension} exceeds native "
+                    f"dimension {native_size} for {model_name}."
+                )
+        self.output_dimension = output_dimension
         self.binary_path = (
             Path(binary_path) if binary_path else self._default_binary_path()
         )
@@ -42,6 +65,11 @@ class Qwen3RustProvider(EmbeddingProvider):
             Path(metrics_path) if metrics_path else self._default_metrics_path()
         )
         self.response_limit_bytes = response_limit_bytes
+        self.idle_timeout_seconds = (
+            idle_timeout_seconds
+            if idle_timeout_seconds is not None
+            else _env_int("QWEN3_IDLE_TIMEOUT_SECONDS", DEFAULT_IDLE_TIMEOUT_SECONDS)
+        )
         self._process: asyncio.subprocess.Process | None = None
         self._lock = asyncio.Lock()
         self._ready: dict[str, Any] | None = None
@@ -68,7 +96,7 @@ class Qwen3RustProvider(EmbeddingProvider):
             text_count=len(documents),
             char_count=sum(len(document) for document in documents),
         )
-        return response["embeddings"]
+        return self._shape_embeddings(response["embeddings"])
 
     async def embed_query(self, query: str) -> list[float]:
         response = await self._request(
@@ -77,13 +105,15 @@ class Qwen3RustProvider(EmbeddingProvider):
             text_count=1,
             char_count=len(query),
         )
-        return response["embeddings"][0]
+        return self._shape_embeddings(response["embeddings"])[0]
 
     def get_vector_name(self) -> str:
         model_name = self.model_name.split("/")[-1].lower()
         return f"qwen3-{model_name}"
 
     def get_vector_size(self) -> int:
+        if self.output_dimension is not None:
+            return self.output_dimension
         if self._ready and "vector_size" in self._ready:
             return int(self._ready["vector_size"])
         if self.model_name in KNOWN_QWEN3_DIMS:
@@ -92,6 +122,21 @@ class Qwen3RustProvider(EmbeddingProvider):
 
     def get_model_name(self) -> str:
         return self.model_name
+
+    @staticmethod
+    def _normalize(vector: list[float]) -> list[float]:
+        norm = math.sqrt(sum(value * value for value in vector))
+        if norm == 0:
+            return vector
+        return [value / norm for value in vector]
+
+    def _shape_embeddings(self, embeddings: list[list[float]]) -> list[list[float]]:
+        if self.output_dimension is None:
+            return embeddings
+        return [
+            self._normalize(embedding[: self.output_dimension])
+            for embedding in embeddings
+        ]
 
     @staticmethod
     def _document_input(document: str) -> str:
@@ -199,7 +244,9 @@ class Qwen3RustProvider(EmbeddingProvider):
         self._idle_task = asyncio.get_event_loop().create_task(self._idle_shutdown())
 
     async def _idle_shutdown(self) -> None:
-        await asyncio.sleep(IDLE_TIMEOUT)
+        if self.idle_timeout_seconds <= 0:
+            return
+        await asyncio.sleep(self.idle_timeout_seconds)
         if self._process and self._process.returncode is None:
             self._process.terminate()
             await asyncio.wait_for(self._process.wait(), timeout=5)
@@ -232,6 +279,8 @@ class Qwen3RustProvider(EmbeddingProvider):
             "dtype": self._ready.get("dtype") if self._ready else None,
             "max_length": self.max_length,
             "vector_size": self.get_vector_size(),
+            "native_vector_size": self._ready.get("vector_size") if self._ready else None,
+            "output_dimension": self.output_dimension,
             "text_count": text_count,
             "char_count": char_count,
             "embedding_count": embedding_count,

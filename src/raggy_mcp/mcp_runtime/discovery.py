@@ -217,8 +217,8 @@ def supported_extractors_payload() -> dict[str, Any]:
             },
             {
                 "extension": ".pdf",
-                "primary": "preflight scan, then pdfminer.six",
-                "fallback": "pypdf when pdfminer returns no text",
+                "primary": "preflight scan, then PyMuPDF",
+                "fallback": "pdfminer.six, then pypdf when earlier extractors return no text",
                 "limitations": "OCR is not performed; probably scanned PDFs fail early with an OCR-needed message",
             },
             {
@@ -230,8 +230,8 @@ def supported_extractors_payload() -> dict[str, Any]:
         ],
         "chunking": {
             "strategy": "paragraph-aware with hard split for oversized paragraphs",
-            "target_chunk_chars": 700,
-            "overlap_chars": 70,
+            "target_chunk_chars": 1000,
+            "overlap_chars": 150,
         },
     }
 

@@ -18,9 +18,11 @@ def create_embedding_provider(settings: EmbeddingProviderSettings) -> EmbeddingP
                 device=settings.device,
                 max_length=settings.qwen3_max_length,
                 dtype=settings.qwen3_dtype,
+                output_dimension=settings.qwen3_output_dimension,
                 binary_path=settings.qwen3_sidecar_path,
                 metrics_path=settings.qwen3_metrics_path,
                 response_limit_bytes=settings.qwen3_response_limit_bytes,
+                idle_timeout_seconds=settings.qwen3_idle_timeout_seconds,
             )
 
         from raggy_mcp.embeddings.fastembed import FastEmbedProvider

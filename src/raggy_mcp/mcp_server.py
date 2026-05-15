@@ -945,7 +945,7 @@ class QdrantMCPServer(FastMCP):
             ] = 10,
             chunks_per_document: Annotated[
                 int, Field(description="Best chunks to surface per document")
-            ] = 4,
+            ] = 3,
             filter: Annotated[
                 dict | None,
                 Field(description="High-level filter: {must, should, must_not}"),
@@ -969,13 +969,13 @@ class QdrantMCPServer(FastMCP):
             prefetch_limit: Annotated[
                 int | None,
                 Field(
-                    description="Candidate pool size before grouping/reranking. None = auto (100 with reranker, 80 without). Raise to 120-150 for better recall with Qwen3-Reranker-4B."
+                    description="Candidate pool size before reranking/grouping. None = auto (80). Try 30 fast, 50 balanced, 100 deep."
                 ),
             ] = None,
             rerank_top_k: Annotated[
                 int | None,
                 Field(
-                    description="Max candidates scored by the reranker. None = all prefetched. Limit to 60-80 to speed up Qwen3 reranking."
+                    description="Max candidates scored by the reranker. None = balanced auto (50). Try 30 fast, 50 balanced, 100 deep."
                 ),
             ] = None,
             additional_queries: Annotated[
@@ -995,7 +995,7 @@ class QdrantMCPServer(FastMCP):
                 Field(description="Late-interaction model for mode='late_interaction'"),
             ] = "colbert-ir/colbertv2.0",
         ) -> dict:
-            """Document-level grouped search — best chunk per file, ranked by document score."""
+            """Chunk-first search, then document-aware grouping after optional rerank."""
             from raggy_mcp.mcp_runtime.envelope import (
                 envelope_context,
                 failure_from,
@@ -1014,6 +1014,22 @@ class QdrantMCPServer(FastMCP):
 
                     qfilter = compile_filter(filter) if filter else None
                     use_sparse = rmode in (RetrievalMode.HYBRID, RetrievalMode.RERANK)
+                    if use_sparse:
+                        sparse_vector_name = (
+                            await self.qdrant_connector.get_sparse_vector_name(
+                                collection_name
+                            )
+                        )
+                        if not sparse_vector_name:
+                            return failure_from(
+                                acc,
+                                code="unsupported_search_mode",
+                                message=(
+                                    f"Collection '{collection_name}' does not have sparse vectors; "
+                                    f"mode='{mode}' requires a hybrid-indexed collection."
+                                ),
+                                profile=profile,
+                            )
                     sparse_provider = self.get_sparse_provider() if use_sparse else None
                     late_interaction_provider = (
                         self.get_late_interaction_provider(late_interaction_model)
@@ -1372,7 +1388,11 @@ class QdrantMCPServer(FastMCP):
             """Ingest a single file: extract text, collect macOS metadata, chunk and store."""
             from pathlib import Path
 
-            from raggy_mcp.ingest.document_id import compute_document_id
+            from raggy_mcp.ingest.document_id import (
+                compute_document_id,
+                compute_source_id,
+                compute_version_id,
+            )
             from raggy_mcp.ingest.extractor import (
                 SUPPORTED_EXTENSIONS,
                 build_chunks,
@@ -1440,7 +1460,13 @@ class QdrantMCPServer(FastMCP):
                     if doc.page_count is not None:
                         file_meta["page_count"] = doc.page_count
                     file_meta["ingested_at"] = datetime.now(timezone.utc).isoformat()
-                    file_meta["document_id"] = compute_document_id(str(path))
+                    file_meta["document_id"] = compute_document_id(
+                        doc.text, path=str(path)
+                    )
+                    file_meta["source_id"] = compute_source_id(str(path))
+                    file_meta["version_id"] = compute_version_id(
+                        doc.text, file_meta.get("modified_at")
+                    )
                     file_meta["parent_path"] = str(path.parent)
                     file_meta.update(extra)
 
@@ -1524,6 +1550,8 @@ class QdrantMCPServer(FastMCP):
                             "file_path": str(path),
                             "filename": path.name,
                             "document_id": file_meta["document_id"],
+                            "source_id": file_meta["source_id"],
+                            "version_id": file_meta["version_id"],
                             "collection": collection_name,
                             "chunks_stored": stored,
                             "extractor_used": doc.extractor_used,
@@ -1614,7 +1642,11 @@ class QdrantMCPServer(FastMCP):
             from datetime import datetime, timezone
             from pathlib import Path
 
-            from raggy_mcp.ingest.document_id import compute_document_id
+            from raggy_mcp.ingest.document_id import (
+                compute_document_id,
+                compute_source_id,
+                compute_version_id,
+            )
             from raggy_mcp.ingest.extractor import (
                 SUPPORTED_EXTENSIONS,
                 build_chunks,
@@ -1778,7 +1810,13 @@ class QdrantMCPServer(FastMCP):
                         if doc.page_count is not None:
                             file_meta["page_count"] = doc.page_count
                         file_meta["ingested_at"] = ingested_at
-                        file_meta["document_id"] = compute_document_id(str(path))
+                        file_meta["document_id"] = compute_document_id(
+                            doc.text, path=str(path)
+                        )
+                        file_meta["source_id"] = compute_source_id(str(path))
+                        file_meta["version_id"] = compute_version_id(
+                            doc.text, file_meta.get("modified_at")
+                        )
                         file_meta["parent_path"] = str(path.parent)
                         file_meta.update(extra)
 

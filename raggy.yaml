@@ -27,6 +27,26 @@ models:
   late_interaction: colbert-ir/colbertv2.0
   reranker: Xenova/ms-marco-MiniLM-L-6-v2
   reranker_instruction: null          # task instruction for Qwen3 rerankers (optional)
+  reranker_profiles:
+    fast:
+      model: Xenova/ms-marco-MiniLM-L-6-v2
+      backend: fastembed
+      pool: 50
+    balanced:
+      model: zhiqing/Qwen3-Reranker-0.6B-seq-cls-ONNX
+      backend: onnxruntime
+      pool: 30
+      status: planned
+    quality:
+      model: zhiqing/Qwen3-Reranker-4B-seq-cls-ONNX
+      backend: vllm_http
+      pool: 20
+      status: planned
+    deep:
+      model: Qwen/Qwen3-Reranker-4B
+      backend: transformers
+      pool: 20
+      status: offline_eval_only
   # reranker_providers override (env: QDRANT_RERANKER_PROVIDERS)
   reranker_providers:
     - CPUExecutionProvider
@@ -35,12 +55,14 @@ models:
   qwen3:
     max_length: 1024
     dtype: auto
+    output_dimension: null            # set to 1280 for half-dim Qwen3-4B tests
     response_limit_bytes: 67108864   # 64 MiB
+    idle_timeout_seconds: 300        # keep sidecar warm for search bursts
 
 # ── Ingest ─────────────────────────────────────────────────────────────────
 ingest:
-  chunk_size: 700
-  chunk_overlap: 70
+  chunk_size: 1000
+  chunk_overlap: 150
   embedding_batch_size: 4
   write_max_concurrency: 1
   write_queue_size: 8
@@ -54,8 +76,8 @@ search:
   #   late_interaction col.  → late_interaction
   default_mode: auto
 
-  rerank_prefetch_limit: 100          # 0 = auto
-  rerank_top_k: 0                     # 0 = all prefetched
+  rerank_prefetch_limit: 80           # 0 = auto
+  rerank_top_k: 50                    # 0 = all prefetched
   diversity_max_chunks_per_page: 2    # for rerank diversity pass
 
 # ── Collections ────────────────────────────────────────────────────────────
